@@ -19,7 +19,7 @@ MonoBehaviour:
     width: 1920
     height: 989
   m_ShowMode: 4
-  m_Title: Game
+  m_Title: Project
   m_RootView: {fileID: 2}
   m_MinSize: {x: 875, y: 300}
   m_MaxSize: {x: 10000, y: 10000}
@@ -119,7 +119,7 @@ MonoBehaviour:
   m_MinSize: {x: 300, y: 100}
   m_MaxSize: {x: 24288, y: 16192}
   vertical: 0
-  controlID: 91
+  controlID: 93
   draggingID: 0
 --- !u!114 &6
 MonoBehaviour:
@@ -145,7 +145,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 100}
   m_MaxSize: {x: 16192, y: 16192}
   vertical: 1
-  controlID: 47
+  controlID: 38
   draggingID: 0
 --- !u!114 &7
 MonoBehaviour:
@@ -171,7 +171,7 @@ MonoBehaviour:
   m_MinSize: {x: 200, y: 50}
   m_MaxSize: {x: 16192, y: 8096}
   vertical: 0
-  controlID: 38
+  controlID: 39
   draggingID: 0
 --- !u!114 &8
 MonoBehaviour:
@@ -272,8 +272,8 @@ MonoBehaviour:
     y: 0
     width: 426
     height: 933
-  m_MinSize: {x: 276, y: 76}
-  m_MaxSize: {x: 4001, y: 4026}
+  m_MinSize: {x: 275, y: 50}
+  m_MaxSize: {x: 4000, y: 4000}
   m_ActualView: {fileID: 17}
   m_Panes:
   - {fileID: 17}
@@ -339,7 +339,7 @@ MonoBehaviour:
   m_Pos:
     serializedVersion: 2
     x: 0
-    y: 24
+    y: 79
     width: 258
     height: 560
   m_SerializedDataModeController:
@@ -356,9 +356,9 @@ MonoBehaviour:
   m_SceneHierarchy:
     m_TreeViewState:
       scrollPos: {x: 0, y: 0}
-      m_SelectedIDs: 
+      m_SelectedIDs: 5a930000
       m_LastClickedID: 0
-      m_ExpandedIDs: 7699ffffc29effff
+      m_ExpandedIDs: 76c0ffff82c4ffff60c6ffff808c0000ae8c0000
       m_RenameOverlay:
         m_UserAcceptedRename: 0
         m_Name: 
@@ -405,8 +405,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Scene\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 260
-    y: 24
+    x: 259
+    y: 79
     width: 1233
     height: 560
   m_SerializedDataModeController:
@@ -927,11 +927,11 @@ MonoBehaviour:
       displayed: 1
       id: AINavigationOverlay
       index: 10
-      contents: '{"m_Layout":4,"m_Collapsed":false,"m_Floating":false,"m_FloatingSnapOffset":{"x":-111.20098876953125,"y":-98.4010009765625},"m_SnapOffsetDelta":{"x":0.00006103515625,"y":0.0},"m_FloatingSnapCorner":3,"m_Size":{"x":0.0,"y":0.0},"m_SizeOverridden":false}'
+      contents: '{"m_Layout":4,"m_Collapsed":false,"m_Floating":false,"m_FloatingSnapOffset":{"x":-111.200927734375,"y":-98.4010009765625},"m_SnapOffsetDelta":{"x":0.0,"y":0.0},"m_FloatingSnapCorner":3,"m_Size":{"x":0.0,"y":0.0},"m_SizeOverridden":false}'
       floating: 0
       collapsed: 0
-      snapOffset: {x: -111.20099, y: -98.401}
-      snapOffsetDelta: {x: 0.000061035156, y: 0}
+      snapOffset: {x: -111.20093, y: -98.401}
+      snapOffsetDelta: {x: 0, y: 0}
       snapCorner: 3
       layout: 4
       size: {x: 0, y: 0}
@@ -977,9 +977,9 @@ MonoBehaviour:
   m_AudioPlay: 0
   m_DebugDrawModesUseInteractiveLightBakingData: 0
   m_Position:
-    m_Target: {x: 0, y: 0, z: 0}
+    m_Target: {x: 463.01965, y: 757.68207, z: -780.3218}
     speed: 2
-    m_Value: {x: 0, y: 0, z: 0}
+    m_Value: {x: 463.01965, y: 757.68207, z: -780.3218}
   m_RenderMode: 0
   m_CameraMode:
     drawMode: 0
@@ -1025,13 +1025,13 @@ MonoBehaviour:
     m_GridAxis: 1
     m_gridOpacity: 0.5
   m_Rotation:
-    m_Target: {x: -0.08717229, y: 0.89959055, z: -0.21045254, w: -0.3726226}
+    m_Target: {x: 0.24023852, y: 0.07271809, z: -0.018050084, w: 0.967816}
     speed: 2
-    m_Value: {x: -0.08717229, y: 0.89959055, z: -0.21045254, w: -0.3726226}
+    m_Value: {x: 0.240239, y: 0.07271823, z: -0.01805012, w: 0.9678179}
   m_Size:
     m_Target: 6.9187393
     speed: 2
-    m_Value: 10
+    m_Value: 6.9187393
   m_Ortho:
     m_Target: 0
     speed: 2
@@ -1190,7 +1190,7 @@ MonoBehaviour:
   m_Pos:
     serializedVersion: 2
     x: 0
-    y: 610
+    y: 665
     width: 1493
     height: 321
   m_SerializedDataModeController:
@@ -1215,7 +1215,7 @@ MonoBehaviour:
     m_SkipHidden: 0
     m_SearchArea: 1
     m_Folders:
-    - Assets/Teams/ActarusTeam
+    - Assets/Teams/ActarusTeam/AI
     m_Globs: []
     m_ProductIds: 
     m_AnyWithAssetOrigin: 0
@@ -1225,16 +1225,16 @@ MonoBehaviour:
   m_ViewMode: 1
   m_StartGridSize: 64
   m_LastFolders:
-  - Assets/Teams/ActarusTeam
+  - Assets/Teams/ActarusTeam/AI
   m_LastFoldersGridSize: -1
-  m_LastProjectPath: C:\App\Unity\Projects\TP_AI_Project
+  m_LastProjectPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project
   m_LockTracker:
     m_IsLocked: 0
   m_FolderTreeState:
     scrollPos: {x: 0, y: 39}
-    m_SelectedIDs: da900000
-    m_LastClickedID: 37082
-    m_ExpandedIDs: 
+    m_SelectedIDs: 66930000
+    m_LastClickedID: 37734
+    m_ExpandedIDs: 00000000e8890000028a0000e88c000000ca9a3b
     m_RenameOverlay:
       m_UserAcceptedRename: 0
       m_Name: 
@@ -1343,8 +1343,8 @@ MonoBehaviour:
     m_TextWithWhitespace: "Inspector\u200B"
   m_Pos:
     serializedVersion: 2
-    x: 1495
-    y: 24
+    x: 1494
+    y: 79
     width: 425
     height: 907
   m_SerializedDataModeController:
