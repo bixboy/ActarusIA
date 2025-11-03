@@ -988,7 +988,7 @@
 "Assets/Launcher/ControllerButton.cs"
 "Assets/Launcher/Launcher.cs"
 "Assets/Launcher/LevelButton.cs"
-"Assets/Teams/ActarusTeam/ActarusController.cs"
+"Assets/Teams/ActarusTeam/ActarusControllerV1.cs"
 -langversion:9.0
 /deterministic
 /optimize+

@@ -1,6 +1,6 @@
 m_ProjectFiles:
   m_ManifestFileStatus:
-    m_FilePath: C:/App/Unity/Projects/TP_AI_Project/Packages/manifest.json
+    m_FilePath: C:/App/Unity/Projects/ActarusIA/TP_AI_Project/Packages/manifest.json
     m_PathExists: 1
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
@@ -8,7 +8,7 @@ m_ProjectFiles:
       ticks: 638977866106474651
     m_Hash: 3653112927
   m_LockFileStatus:
-    m_FilePath: C:/App/Unity/Projects/TP_AI_Project/Packages/packages-lock.json
+    m_FilePath: C:/App/Unity/Projects/ActarusIA/TP_AI_Project/Packages/packages-lock.json
     m_PathExists: 1
     m_ContentTrackingEnabled: 1
     m_ModificationDate:
@@ -19,7 +19,7 @@ m_EmbeddedPackageManifests:
   m_ManifestsStatus: {}
 m_LocalPackages:
   m_LocalFileStatus: []
-m_ProjectPath: C:/App/Unity/Projects/TP_AI_Project/Packages
+m_ProjectPath: C:/App/Unity/Projects/ActarusIA/TP_AI_Project/Packages
 m_EditorVersion: 6000.0.61f1 (74a0adb02c31)
 m_ResolvedPackages:
 - packageId: com.unity.2d.sprite@1.0.0
@@ -27,7 +27,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.2d.sprite@897b7eecf04e
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.2d.sprite@897b7eecf04e
   assetPath: Packages/com.unity.2d.sprite
   name: com.unity.2d.sprite
   displayName: 2D Sprite
@@ -106,7 +106,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.2d.tilemap@e147c8eadabf
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.2d.tilemap@e147c8eadabf
   assetPath: Packages/com.unity.2d.tilemap
   name: com.unity.2d.tilemap
   displayName: 2D Tilemap Editor
@@ -202,7 +202,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 4.4.2
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.ads@a7b997f68a1d
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.ads@a7b997f68a1d
   assetPath: Packages/com.unity.ads
   name: com.unity.ads
   displayName: Advertisement Legacy
@@ -211,7 +211,7 @@ m_ResolvedPackages:
     email: 
     url: 
   category: 
-  type: 
+  type: asset
   description: "Connect your game to the Unity Ads Network for iOS and Android to
     quickly and effectively monetize your games.\n\nNOTE: Unity has joined forces
     with ironSource and recommends using Unity LevelPlay for ad mediation (instead
@@ -276,7 +276,7 @@ m_ResolvedPackages:
     - 4.4.2
     - 4.12.0
     - 4.16.3
-    recommended: 4.4.2
+    recommended: 4.16.3
     deprecated: []
   dependencies:
   - name: com.unity.ugui
@@ -304,7 +304,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638161229410000000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.ads@4.4/manual/index.html
@@ -317,7 +317,7 @@ m_ResolvedPackages:
   unityLifecycle:
     version: 4.4.2
     nextVersion: 
-    recommendedVersion: 
+    recommendedVersion: 4.16.3
     isDeprecated: 0
     deprecationMessage: 
   isDeprecated: 0
@@ -325,10 +325,9 @@ m_ResolvedPackages:
   git:
     hash: 
     revision: 
-  upmReserved: '{"gameService":{"groupIndex":4,"groupName":"Monetization","genericDashboardUrl":"https://unityads.unity3d.com/help/index","projectDashboardUrl":"https://dashboard.unity3d.com/organizations/{0}/projects/{1}/monetization/about","projectDashboardUrlType":"OrganizationKeyAndProjectGuid","configurePath":"Project/Services/Ads"},"supportedPlatforms":["Android","iOS"],"changelog":"##
-    **Unity**\n - Remove redirect pop-ups directing users to Unity Mediation.\n##
-    **Android**\n### **Bugfix**\n- Fixed a NullPointerException when Application
-    Context is null for cached directory file path."}'
+  upmReserved: '{"changelog":"## **Unity**\n - Remove redirect pop-ups directing
+    users to Unity Mediation.\n## **Android**\n### **Bugfix**\n- Fixed a NullPointerException
+    when Application Context is null for cached directory file path.","gameService":{"groupName":"Monetization","groupIndex":4,"configurePath":"Project/Services/Ads","genericDashboardUrl":"https://unityads.unity3d.com/help/index","projectDashboardUrl":"https://dashboard.unity3d.com/organizations/{0}/projects/{1}/monetization/about","projectDashboardUrlType":"OrganizationKeyAndProjectGuid"},"supportedPlatforms":["Android","iOS"]}'
   assetStore:
     productId: 
   fingerprint: a7b997f68a1d40387ca4d33fc75578709c140a37
@@ -347,7 +346,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.0.9
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.ai.navigation@5218e4bf7edc
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.ai.navigation@5218e4bf7edc
   assetPath: Packages/com.unity.ai.navigation
   name: com.unity.ai.navigation
   displayName: AI Navigation
@@ -428,7 +427,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638919725134710000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.ai.navigation@2.0/manual/index.html
@@ -479,7 +478,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 3.8.1
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.analytics@6cc66d58ac08
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.analytics@6cc66d58ac08
   assetPath: Packages/com.unity.analytics
   name: com.unity.analytics
   displayName: Analytics Library
@@ -552,15 +551,15 @@ m_ResolvedPackages:
     version: 1.0.0
   - name: com.unity.services.analytics
     version: 6.1.0
-  - name: com.unity.modules.jsonserialize
-    version: 1.0.0
   - name: com.unity.services.core
     version: 1.14.0
-  - name: com.unity.modules.unitywebrequest
+  - name: com.unity.modules.androidjni
     version: 1.0.0
   - name: com.unity.nuget.newtonsoft-json
     version: 3.2.1
-  - name: com.unity.modules.androidjni
+  - name: com.unity.modules.unitywebrequest
+    version: 1.0.0
+  - name: com.unity.modules.jsonserialize
     version: 1.0.0
   keywords:
   - analytics
@@ -618,7 +617,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.10.0
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.collab-proxy@1e5e48aff19d
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.collab-proxy@1e5e48aff19d
   assetPath: Packages/com.unity.collab-proxy
   name: com.unity.collab-proxy
   displayName: Unity Version Control
@@ -754,7 +753,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638956334465660000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.collab-proxy@2.10/manual/index.html
@@ -808,7 +807,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 3.0.38
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.ide.rider@1f60b3138684
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.ide.rider@1f60b3138684
   assetPath: Packages/com.unity.ide.rider
   name: com.unity.ide.rider
   displayName: JetBrains Rider Editor
@@ -938,7 +937,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.0.25
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.ide.visualstudio@74aa435fc4bb
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.ide.visualstudio@74aa435fc4bb
   assetPath: Packages/com.unity.ide.visualstudio
   name: com.unity.ide.visualstudio
   displayName: Visual Studio Editor
@@ -1010,7 +1009,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638954434425230000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.ide.visualstudio@2.0/manual/index.html
@@ -1051,7 +1050,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.0.0
   source: 2
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.multiplayer.center@f3fb577b3546
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.multiplayer.center@f3fb577b3546
   assetPath: Packages/com.unity.multiplayer.center
   name: com.unity.multiplayer.center
   displayName: Multiplayer Center
@@ -1144,7 +1143,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 4.12.2
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.purchasing@649c6c7b3b1b
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.purchasing@649c6c7b3b1b
   assetPath: Packages/com.unity.purchasing
   name: com.unity.purchasing
   displayName: In App Purchasing
@@ -1153,7 +1152,7 @@ m_ResolvedPackages:
     email: 
     url: 
   category: 
-  type: 
+  type: assets
   description: "IMPORTANT UPGRADE NOTES:\n\nIf updating from Unity IAP (com.unity.purchasing
     + the Asset Store plugin) versions 2.x to version 3.x, complete the following
     actions in order to resolve compilation errors:\n 1. Move IAPProductCatalog.json
@@ -1271,19 +1270,19 @@ m_ResolvedPackages:
     - 5.0.0
     - 5.0.1
     - 5.0.2
-    recommended: 4.12.2
+    recommended: 5.0.2
     deprecated: []
   dependencies:
   - name: com.unity.ugui
     version: 1.0.0
-  - name: com.unity.modules.unitywebrequest
+  - name: com.unity.services.core
+    version: 1.12.5
+  - name: com.unity.modules.androidjni
     version: 1.0.0
   - name: com.unity.modules.jsonserialize
     version: 1.0.0
-  - name: com.unity.modules.androidjni
+  - name: com.unity.modules.unitywebrequest
     version: 1.0.0
-  - name: com.unity.services.core
-    version: 1.12.5
   resolvedDependencies:
   - name: com.unity.ugui
     version: 2.0.0
@@ -1291,16 +1290,16 @@ m_ResolvedPackages:
     version: 1.0.0
   - name: com.unity.modules.imgui
     version: 1.0.0
+  - name: com.unity.services.core
+    version: 1.14.0
+  - name: com.unity.modules.androidjni
+    version: 1.0.0
+  - name: com.unity.nuget.newtonsoft-json
+    version: 3.2.1
   - name: com.unity.modules.unitywebrequest
     version: 1.0.0
   - name: com.unity.modules.jsonserialize
     version: 1.0.0
-  - name: com.unity.modules.androidjni
-    version: 1.0.0
-  - name: com.unity.services.core
-    version: 1.14.0
-  - name: com.unity.nuget.newtonsoft-json
-    version: 3.2.1
   keywords:
   - purchasing
   - iap
@@ -1318,7 +1317,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 0
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638568999980000000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.purchasing@4.12/manual/index.html
@@ -1331,7 +1330,7 @@ m_ResolvedPackages:
   unityLifecycle:
     version: 4.12.2
     nextVersion: 5.0.0-pre.1
-    recommendedVersion: 
+    recommendedVersion: 5.0.0
     isDeprecated: 0
     deprecationMessage: 
   isDeprecated: 0
@@ -1339,10 +1338,9 @@ m_ResolvedPackages:
   git:
     hash: 
     revision: 
-  upmReserved: '{"gameService":{"groupIndex":4,"groupName":"Monetize","configurePath":"Project/Services/In-App
-    Purchasing","genericDashboardUrl":"https://dashboard.unity3d.com/","projectDashboardUrl":"https://dashboard.unity3d.com/organizations/{0}/projects/{1}/analytics/v2/dashboards/revenue","projectDashboardUrlType":"OrganizationKeyAndProjectGuid"},"supportedPlatforms":["Android","iOS"],"changelog":"###
-    Fixed\n- GooglePlay - Fixed `Product.receipt`''s `price_amount_micros` returning
-    a string instead of a long."}'
+  upmReserved: '{"changelog":"### Fixed\n- GooglePlay - Fixed `Product.receipt`''s
+    `price_amount_micros` returning a string instead of a long.","gameService":{"groupName":"Monetize","groupIndex":4,"configurePath":"Project/Services/In-App
+    Purchasing","genericDashboardUrl":"https://dashboard.unity3d.com/","projectDashboardUrl":"https://dashboard.unity3d.com/organizations/{0}/projects/{1}/analytics/v2/dashboards/revenue","projectDashboardUrlType":"OrganizationKeyAndProjectGuid"},"supportedPlatforms":["Android","iOS"]}'
   assetStore:
     productId: 
   fingerprint: 649c6c7b3b1b6277839041f4987c0a1e66176678
@@ -1361,7 +1359,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.6.0
   source: 2
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.test-framework@da1fb3d479aa
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.test-framework@da1fb3d479aa
   assetPath: Packages/com.unity.test-framework
   name: com.unity.test-framework
   displayName: Test Framework
@@ -1450,7 +1448,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 1.8.9
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.timeline@6b9e48457ddb
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.timeline@6b9e48457ddb
   assetPath: Packages/com.unity.timeline
   name: com.unity.timeline
   displayName: Timeline
@@ -1647,7 +1645,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.0.0
   source: 2
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.ugui@febb2d7f5d88
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.ugui@febb2d7f5d88
   assetPath: Packages/com.unity.ugui
   name: com.unity.ugui
   displayName: Unity UI
@@ -1742,7 +1740,7 @@ m_ResolvedPackages:
   isDirectDependency: 1
   version: 2.1.12
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.xr.legacyinputhelpers@b7579e86f3b4
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.xr.legacyinputhelpers@b7579e86f3b4
   assetPath: Packages/com.unity.xr.legacyinputhelpers
   name: com.unity.xr.legacyinputhelpers
   displayName: XR Legacy Input Helpers
@@ -1831,7 +1829,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638738251595540000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.xr.legacyinputhelpers@2.1/manual/index.html
@@ -4600,7 +4598,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 2.0.5
   source: 2
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.ext.nunit@031a54704bff
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.ext.nunit@031a54704bff
   assetPath: Packages/com.unity.ext.nunit
   name: com.unity.ext.nunit
   displayName: Custom NUnit
@@ -4679,7 +4677,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 1.14.0
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.services.core@9e81a5e38245
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.services.core@9e81a5e38245
   assetPath: Packages/com.unity.services.core
   name: com.unity.services.core
   displayName: Services Core
@@ -4734,21 +4732,21 @@ m_ResolvedPackages:
     - 1.14.0
     - 1.15.1
     - 1.15.2
-    recommended: 1.14.0
+    recommended: 1.15.2
     deprecated: []
   dependencies:
-  - name: com.unity.modules.unitywebrequest
+  - name: com.unity.modules.androidjni
     version: 1.0.0
   - name: com.unity.nuget.newtonsoft-json
     version: 3.2.1
-  - name: com.unity.modules.androidjni
+  - name: com.unity.modules.unitywebrequest
     version: 1.0.0
   resolvedDependencies:
-  - name: com.unity.modules.unitywebrequest
+  - name: com.unity.modules.androidjni
     version: 1.0.0
   - name: com.unity.nuget.newtonsoft-json
     version: 3.2.1
-  - name: com.unity.modules.androidjni
+  - name: com.unity.modules.unitywebrequest
     version: 1.0.0
   keywords: []
   registry:
@@ -4764,7 +4762,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638684041320270000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.services.core@1.14/manual/index.html
@@ -4777,7 +4775,7 @@ m_ResolvedPackages:
   unityLifecycle:
     version: 1.14.0
     nextVersion: 
-    recommendedVersion: 
+    recommendedVersion: 1.15.1
     isDeprecated: 0
     deprecationMessage: 
   isDeprecated: 0
@@ -4810,7 +4808,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 6.1.0
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.services.analytics@10a9ca5d5622
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.services.analytics@10a9ca5d5622
   assetPath: Packages/com.unity.services.analytics
   name: com.unity.services.analytics
   displayName: Analytics
@@ -4866,10 +4864,10 @@ m_ResolvedPackages:
   dependencies:
   - name: com.unity.ugui
     version: 1.0.0
-  - name: com.unity.modules.jsonserialize
-    version: 1.0.0
   - name: com.unity.services.core
     version: 1.12.4
+  - name: com.unity.modules.jsonserialize
+    version: 1.0.0
   resolvedDependencies:
   - name: com.unity.ugui
     version: 2.0.0
@@ -4877,15 +4875,15 @@ m_ResolvedPackages:
     version: 1.0.0
   - name: com.unity.modules.imgui
     version: 1.0.0
-  - name: com.unity.modules.jsonserialize
-    version: 1.0.0
   - name: com.unity.services.core
     version: 1.14.0
-  - name: com.unity.modules.unitywebrequest
+  - name: com.unity.modules.androidjni
     version: 1.0.0
   - name: com.unity.nuget.newtonsoft-json
     version: 3.2.1
-  - name: com.unity.modules.androidjni
+  - name: com.unity.modules.unitywebrequest
+    version: 1.0.0
+  - name: com.unity.modules.jsonserialize
     version: 1.0.0
   keywords: []
   registry:
@@ -4901,7 +4899,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638865241437490000
   documentationUrl: https://docs.unity3d.com/Packages/com.unity.services.analytics@6.1/manual/index.html
@@ -4914,7 +4912,7 @@ m_ResolvedPackages:
   unityLifecycle:
     version: 6.1.0
     nextVersion: 
-    recommendedVersion: 
+    recommendedVersion: 6.1.0
     isDeprecated: 0
     deprecationMessage: 
   isDeprecated: 0
@@ -4922,25 +4920,23 @@ m_ResolvedPackages:
   git:
     hash: 
     revision: 
-  upmReserved: '{"gameService":{"genericDashboardUrl":"https://cloud.unity.com/analytics","projectDashboardUrl":"https://cloud.unity.com/home/organizations/{0}/projects/{1}/environments/default/analytics/v2/about","projectDashboardUrlType":"OrganizationKeyAndProjectGuid","configurePath":"Project/Services/Analytics
-    - Gaming Services"},"supportedPlatforms":["Android","iOS","Linux","Mac","PC","Windows
-    8.1 Universal","Windows 10 Universal","WebGL"],"changelog":"### Added\n\n* Support
-    for the Developer Data framework in Unity 6.2 and above\n  * This supersedes
-    the StartDataCollection and StopDataCollection methods, which are deprecated
-    in Unity 6.2 and above (they are not deprecated in earlier editor versions that
-    do not have the new EndUserConsent APIs)\n  * In order to start and stop data
-    collection, you must now use EndUserConsent.SetConsentState(...) to grant or
-    deny consent for AnalyticsIntent\n  * In order to request data deletion, you
-    must still use the SDK''s RequestDataDeletion method, but you must first explicitly
-    deny consent using the EndUserConsent API\n  * If consent has already been granted,
-    data collection will start automatically during UnityServices.InitializeAsync().
+  upmReserved: '{"changelog":"### Added\n\n* Support for the Developer Data framework
+    in Unity 6.2 and above\n  * This supersedes the StartDataCollection and StopDataCollection
+    methods, which are deprecated in Unity 6.2 and above (they are not deprecated
+    in earlier editor versions that do not have the new EndUserConsent APIs)\n  *
+    In order to start and stop data collection, you must now use EndUserConsent.SetConsentState(...)
+    to grant or deny consent for AnalyticsIntent\n  * In order to request data deletion,
+    you must still use the SDK''s RequestDataDeletion method, but you must first
+    explicitly deny consent using the EndUserConsent API\n  * If consent has already
+    been granted, data collection will start automatically during UnityServices.InitializeAsync().
     Otherwise, data collection will start when consent is granted\n  * When you start
     using the EndUserConsent API, the SDK will throw exceptions if you attempt to
     use methods from the original workflow. The two approaches cannot be mixed\n 
     * Please see the migration guide for more information: https://docs.unity.com/ugs/en-us/manual/analytics/manual/sdk61-migration-guide\n\n###
     Fixed\n\n* Updated the Debug Panel to use a new UIToolkit method in Unity 6.2
     and above to prevent a deprecation warning\n* The two acquisitionSource event
-    buttons in the Standard Events sample now call the correct methods"}'
+    buttons in the Standard Events sample now call the correct methods","gameService":{"configurePath":"Project/Services/Analytics
+    - Gaming Services","genericDashboardUrl":"https://cloud.unity.com/analytics","projectDashboardUrl":"https://cloud.unity.com/home/organizations/{0}/projects/{1}/environments/default/analytics/v2/about","projectDashboardUrlType":"OrganizationKeyAndProjectGuid"}}'
   assetStore:
     productId: 
   fingerprint: 10a9ca5d56226d26b71614c3ee36a91aaa253b96
@@ -4959,7 +4955,7 @@ m_ResolvedPackages:
   isDirectDependency: 0
   version: 3.2.1
   source: 1
-  resolvedPath: C:\App\Unity\Projects\TP_AI_Project\Library\PackageCache\com.unity.nuget.newtonsoft-json@74deb55db2a0
+  resolvedPath: C:\App\Unity\Projects\ActarusIA\TP_AI_Project\Library\PackageCache\com.unity.nuget.newtonsoft-json@74deb55db2a0
   assetPath: Packages/com.unity.nuget.newtonsoft-json
   name: com.unity.nuget.newtonsoft-json
   displayName: Newtonsoft Json
@@ -5020,7 +5016,7 @@ m_ResolvedPackages:
       violations: []
   hideInEditor: 1
   entitlements:
-    licensingModel: 0
+    licensingModel: 1
   isAssetStorePackage: 0
   datePublishedTicks: 638186318800000000
   documentationUrl: 

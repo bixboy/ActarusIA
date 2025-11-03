@@ -61,3 +61,11 @@ sysinfo.txt
 # Crashlytics generated file
 crashlytics-build.properties
 
+
+TP_AI_Project/Temp/
+
+TP_AI_Project/UserSettings/
+
+TP_AI_Project/obj/
+
+TP_AI_Project/Logs/
