@@ -44,7 +44,6 @@ namespace Teams.ActarusControllerV2.pierre
         {
             _blackboard.Self = self;
             _blackboard.Enemy = FindEnemy(self, data);
-            _blackboard.TargetWaypoint = FindPriorityWaypoint(self, data);
             _blackboard.EnemyVisible = IsEnemyVisible(self, _blackboard.Enemy, data);
             _blackboard.HasImminentThreat = HasImminentThreat(self, data);
             _blackboard.ObstacleProximity = EstimateObstacleProximity(self, data);

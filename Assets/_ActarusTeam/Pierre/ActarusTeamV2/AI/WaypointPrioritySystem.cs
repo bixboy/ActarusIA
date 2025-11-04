@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using DoNotModify;
 
-namespace Teams.ActarusController
+namespace Teams.ActarusControllerV2.pierre
 {
     /// <summary>
     /// Strategic selector that evaluates waypoint clusters and picks the best capture target.
@@ -28,15 +28,29 @@ namespace Teams.ActarusController
         private const float IndividualSafetyWeight = 0.15f;
         private const float IndividualOrientationWeight = 0.1f;
 
+        // Debug
+        private const float DebugTextSize = 0.8f;
+        private const float DebugSphereSize = 0.25f;
+        private static readonly Color DebugBestClusterColor = Color.yellow;
+        private static readonly Color DebugBestWaypointColor = Color.green;
+        private static readonly Color DebugClusterLinkColor = new Color(1f, 1f, 1f, 0.25f);
+
+        private List<List<WayPointView>> _lastClusters = new();
+        private List<(Vector2 pos, float score)> _lastGroupScores = new();
+        private WayPointView _lastBestWaypoint;
+
         // ──────────── Public entry ────────────
         public WayPointView SelectBestWaypoint(SpaceShipView self, GameData data)
         {
             if (self == null || data == null)
-            {
                 return null;
-            }
+
+            _lastClusters.Clear();
+            _lastGroupScores.Clear();
+            _lastBestWaypoint = null;
 
             List<List<WayPointView>> groups = ClusterWaypoints(data);
+            _lastClusters = groups;
 
             List<WayPointView> bestGroup = null;
             float bestGroupScore = float.MinValue;
@@ -49,24 +63,33 @@ namespace Teams.ActarusController
                     bestGroupScore = score;
                     bestGroup = group;
                 }
+
+                // Debug store centroid & score
+                Vector2 centroid = Vector2.zero;
+                foreach (var wp in group) centroid += wp.Position;
+                centroid /= group.Count;
+                _lastGroupScores.Add((centroid, score));
             }
 
             if (bestGroup == null || bestGroup.Count == 0)
-            {
                 return null;
-            }
 
-            return SelectBestInGroup(self, data, bestGroup);
+            WayPointView best = SelectBestInGroup(self, data, bestGroup);
+            _lastBestWaypoint = best;
+
+            // Debug draw call
+            DrawDebug(self, bestGroup, best);
+
+            return best;
         }
+
 
         // ──────────── Grouping ────────────
         private List<List<WayPointView>> ClusterWaypoints(GameData data)
         {
-            List<List<WayPointView>> clusters = new List<List<WayPointView>>();
+            List<List<WayPointView>> clusters = new();
             if (data?.WayPoints == null || data.WayPoints.Count == 0)
-            {
                 return clusters;
-            }
 
             List<WayPointView> waypoints = data.WayPoints;
             bool[] visited = new bool[waypoints.Count];
@@ -75,12 +98,10 @@ namespace Teams.ActarusController
             {
                 WayPointView origin = waypoints[i];
                 if (origin == null || visited[i])
-                {
                     continue;
-                }
 
-                List<WayPointView> cluster = new List<WayPointView>();
-                Queue<int> frontier = new Queue<int>();
+                List<WayPointView> cluster = new();
+                Queue<int> frontier = new();
                 frontier.Enqueue(i);
                 visited[i] = true;
 
@@ -89,19 +110,13 @@ namespace Teams.ActarusController
                     int currentIndex = frontier.Dequeue();
                     WayPointView current = waypoints[currentIndex];
                     if (current == null)
-                    {
                         continue;
-                    }
 
                     cluster.Add(current);
 
                     for (int j = 0; j < waypoints.Count; j++)
                     {
-                        if (visited[j])
-                        {
-                            continue;
-                        }
-
+                        if (visited[j]) continue;
                         WayPointView candidate = waypoints[j];
                         if (candidate == null)
                         {
@@ -119,9 +134,7 @@ namespace Teams.ActarusController
                 }
 
                 if (cluster.Count > 0)
-                {
                     clusters.Add(cluster);
-                }
             }
 
             return clusters;
@@ -194,21 +207,15 @@ namespace Teams.ActarusController
 
             foreach (WayPointView waypoint in group)
             {
-                if (waypoint == null)
-                {
-                    continue;
-                }
-
                 float distanceScore = DistanceFactor(self, waypoint);
                 float controlScore = ControlFactor(self, waypoint);
                 float safetyScore = 1f - DangerFactor(self, data, waypoint.Position);
                 float orientationScore = OrientationFactorRelativeToEnemy(self, data, waypoint);
 
-                float score = 0f;
-                score += distanceScore * IndividualDistanceWeight;
-                score += controlScore * IndividualControlWeight;
-                score += Mathf.Clamp01(safetyScore) * IndividualSafetyWeight;
-                score += orientationScore * IndividualOrientationWeight;
+                float score = distanceScore * IndividualDistanceWeight
+                              + controlScore * IndividualControlWeight
+                              + Mathf.Clamp01(safetyScore) * IndividualSafetyWeight
+                              + orientationScore * IndividualOrientationWeight;
 
                 if (score > bestScore)
                 {
@@ -478,5 +485,54 @@ namespace Teams.ActarusController
             float rad = orientationDegrees * Mathf.Deg2Rad;
             return new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
         }
+        
+        
+        // ──────────── DEBUG VISUALIZATION ────────────
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        private void DrawDebug(SpaceShipView self, List<WayPointView> bestGroup, WayPointView bestWaypoint)
+        {
+            // Draw clusters
+            foreach (var cluster in _lastClusters)
+            {
+                Color clusterColor = new(Random.value, Random.value, Random.value, 0.5f);
+                foreach (var wp in cluster)
+                {
+                    Debug.DrawLine(self.Position, wp.Position, clusterColor, 0.1f);
+                    foreach (var other in cluster)
+                    {
+                        if (wp == other) continue;
+                        Debug.DrawLine(wp.Position, other.Position, DebugClusterLinkColor, 0.1f);
+                    }
+                    DebugExtension.DrawSphere(wp.Position, clusterColor, DebugSphereSize);
+                }
+            }
+
+            // Draw centroids with scores
+            foreach (var (pos, score) in _lastGroupScores)
+            {
+                Color c = Color.Lerp(Color.red, Color.green, Mathf.Clamp01((score + 1f) * 0.5f));
+                DebugExtension.DrawSphere(pos, c, DebugSphereSize * 0.8f);
+                DebugExtension.DrawText(pos + Vector2.up * 0.5f, $"S={score:F2}", c, DebugTextSize);
+            }
+
+            // Highlight best group
+            if (bestGroup != null)
+            {
+                foreach (var wp in bestGroup)
+                    Debug.DrawLine(self.Position, wp.Position, DebugBestClusterColor, 0.1f);
+            }
+
+            // Highlight chosen waypoint
+            if (bestWaypoint != null)
+            {
+                Debug.DrawLine(self.Position, bestWaypoint.Position, DebugBestWaypointColor, 0.1f);
+                DebugExtension.DrawSphere(bestWaypoint.Position, DebugBestWaypointColor, DebugSphereSize * 1.5f);
+                DebugExtension.DrawText(bestWaypoint.Position + Vector2.up * 0.7f, "★ TARGET", DebugBestWaypointColor, 1.1f);
+            }
+        }
+
+        // ──────────── Rest of your Utils (unchanged) ────────────
+        // ... (DistanceFactor, DangerFactor, etc. — tu gardes tout pareil)
+        // ⚠️ n'oublie pas d'ajouter le script DebugExtension ci-dessous dans ton projet
     }
 }

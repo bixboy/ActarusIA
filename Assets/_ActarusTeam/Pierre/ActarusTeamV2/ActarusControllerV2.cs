@@ -9,6 +9,7 @@ namespace Teams.ActarusControllerV2.pierre
     {
         private Blackboard _blackboard;
         private PerceptionSystem _perception;
+        private WaypointPrioritySystem _waypointSystem;
         private DecisionSystem _decision;
         private SteeringSystem _steering;
         private CombatSystem _combat;
@@ -21,12 +22,17 @@ namespace Teams.ActarusControllerV2.pierre
             _perception = new PerceptionSystem(_blackboard);
             _decision = new DecisionSystem(_blackboard, _steering);
             _combat = new CombatSystem(_blackboard);
+
+            _waypointSystem = new WaypointPrioritySystem();
         }
+
 
         /// <inheritdoc />
         public override InputData UpdateInput(SpaceShipView spaceship, GameData data)
         {
             _perception.UpdatePerception(spaceship, data);
+            _blackboard.TargetWaypoint = _waypointSystem.SelectBestWaypoint(spaceship, data);
+            
             _combat.UpdateWeapons(data);
             _decision.UpdateDecision(data);
             _steering.UpdateSteering(data);
