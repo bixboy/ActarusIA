@@ -3,10 +3,7 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// Handles visual debugging of the currently selected waypoint in the Unity editor.
-    /// </summary>
-    public sealed class WaypointDebugDrawer
+    public class WaypointDebugDrawer
     {
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
         public void DrawSelection(SpaceShipView self, WayPointView waypoint, float eta, float score)
@@ -19,12 +16,7 @@ namespace Teams.ActarusControllerV2.pierre
 
             Debug.DrawLine(self.Position, waypoint.Position, AIConstants.DebugLineColor, lineDuration);
             DebugExtension.DrawSphere(waypoint.Position, AIConstants.DebugSphereColor, AIConstants.DebugSphereSize);
-            DebugExtension.DrawText(
-                waypoint.Position + Vector2.up * textOffset,
-                $"ETA={eta:F1}s | SCORE={score:F2}",
-                Color.white,
-                AIConstants.DebugTextSize,
-                lineDuration);
+            DebugExtension.DrawText(waypoint.Position + Vector2.up * textOffset, $"ETA={eta:F1}s | SCORE={score:F2}", Color.white, AIConstants.DebugTextSize, lineDuration);
         }
     }
 }

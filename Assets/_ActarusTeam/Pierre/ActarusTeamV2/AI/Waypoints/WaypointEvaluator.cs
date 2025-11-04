@@ -4,9 +4,6 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// Context passed to the evaluator describing the macro strategy biases.
-    /// </summary>
     public readonly struct WaypointEvaluationContext
     {
         public WaypointEvaluationContext(float deficitFactor, float aggressionBias, float cautionBias, float endgameUrgency)
@@ -22,17 +19,11 @@ namespace Teams.ActarusControllerV2.pierre
         public float CautionBias { get; }
         public float EndgameUrgency { get; }
     }
-
-    /// <summary>
-    /// Converts raw metrics into scalar scores using dynamic weights and situational bonuses.
-    /// </summary>
-    public sealed class WaypointEvaluator
+    
+    public class WaypointEvaluator
     {
         private readonly Dictionary<WayPointView, float> _scores = new();
-
-        /// <summary>
-        /// Evaluates every waypoint and returns the raw (pre-memory) score for each entry.
-        /// </summary>
+        
         public Dictionary<WayPointView, float> Evaluate(
             Dictionary<WayPointView, WaypointMetrics> metrics,
             WaypointEvaluationContext context)

@@ -4,10 +4,8 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// High level orchestrator coordinating the metric collection, evaluation and memory subsystems.
-    /// </summary>
-    public sealed class WaypointPrioritySystem
+
+    public class WaypointPrioritySystem
     {
         private readonly WaypointMetricSystem _metricSystem = new();
         private readonly WaypointEvaluator _evaluator = new();
@@ -15,10 +13,7 @@ namespace Teams.ActarusControllerV2.pierre
         private readonly WaypointDebugDrawer _debugDrawer = new();
 
         private float _nextEvaluationTime;
-
-        /// <summary>
-        /// Entry point consumed by the controller. Returns the currently preferred waypoint target.
-        /// </summary>
+        
         public WayPointView SelectBestWaypoint(SpaceShipView self, GameData data)
         {
             if (self == null || data?.WayPoints == null || data.WayPoints.Count == 0)
@@ -52,7 +47,7 @@ namespace Teams.ActarusControllerV2.pierre
 
         private float ScoreDeficitFactor(SpaceShipView self, GameData data)
         {
-            if (self == null || GameManager.Instance == null)
+            if (self == null || !GameManager.Instance)
                 return 0.5f;
 
             int myScore = GameManager.Instance.GetScoreForPlayer(self.Owner);

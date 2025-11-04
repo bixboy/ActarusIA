@@ -4,9 +4,6 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// Immutable snapshot of all the environmental signals required to evaluate a waypoint.
-    /// </summary>
     public struct WaypointMetrics
     {
         public WayPointView Waypoint;
@@ -28,18 +25,11 @@ namespace Teams.ActarusControllerV2.pierre
         public float Orientation;
         public float Approach;
     }
-
-    /// <summary>
-    /// Computes the raw navigation and combat metrics for each waypoint.
-    /// Heavy calculations are centralised here so other systems can reuse the cached values.
-    /// </summary>
-    public sealed class WaypointMetricSystem
+    
+    public class WaypointMetricSystem
     {
         private readonly Dictionary<WayPointView, WaypointMetrics> _metrics = new();
-
-        /// <summary>
-        /// Builds the metrics dictionary for the provided game state.
-        /// </summary>
+        
         public Dictionary<WayPointView, WaypointMetrics> ComputeMetrics(SpaceShipView self, GameData data)
         {
             _metrics.Clear();
@@ -393,10 +383,9 @@ namespace Teams.ActarusControllerV2.pierre
 
                 Vector2 direction = toWaypoint / distance;
                 Vector2 forward = AIUtility.GetForwardVector(ship);
+                
                 float facing = Mathf.Clamp01((Vector2.Dot(forward, direction) + 1f) * 0.5f);
-                float velocityAlignment = ship.Velocity.sqrMagnitude > 0.001f
-                    ? Mathf.Clamp01((Vector2.Dot(ship.Velocity.normalized, direction) + 1f) * 0.5f)
-                    : 0.5f;
+                float velocityAlignment = ship.Velocity.sqrMagnitude > 0.001f ? Mathf.Clamp01((Vector2.Dot(ship.Velocity.normalized, direction) + 1f) * 0.5f) : 0.5f;
                 float speedRatio = Mathf.Clamp01(ship.Velocity.magnitude / Mathf.Max(0.1f, ship.SpeedMax));
 
                 float threat = distanceFactor * Mathf.Lerp(facing, facing * 1.2f, speedRatio) * Mathf.Lerp(0.75f, 1.1f, velocityAlignment);
@@ -411,18 +400,12 @@ namespace Teams.ActarusControllerV2.pierre
             return Mathf.Clamp01(highestThreat);
         }
 
-        private float EstimateTravelTime(
-            SpaceShipView ship,
-            GameData data,
-            WayPointView waypoint,
-            float danger,
-            float openArea,
-            float enemyPressure)
+        private float EstimateTravelTime(SpaceShipView ship, GameData data, WayPointView waypoint, float danger, float openArea, float enemyPressure)
         {
             if (ship == null || waypoint == null)
                 return float.PositiveInfinity;
 
-            _ = data; // reserved for potential future extensions
+            _ = data;
 
             Vector2 toTarget = waypoint.Position - ship.Position;
             float distance = toTarget.magnitude;

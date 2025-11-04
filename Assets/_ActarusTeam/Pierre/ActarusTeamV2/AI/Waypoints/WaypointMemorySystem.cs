@@ -4,10 +4,7 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// Applies temporal smoothing, hysteresis and visited cooldowns to the evaluator output.
-    /// </summary>
-    public sealed class WaypointMemorySystem
+    public class WaypointMemorySystem
     {
         private readonly Dictionary<int, float> _lastVisited = new();
         private readonly Dictionary<int, float> _smoothedScores = new();
@@ -21,27 +18,17 @@ namespace Teams.ActarusControllerV2.pierre
         private WayPointView _cachedBestWaypoint;
         private float _cachedBestScore;
         private float _cachedBestEta;
-
-        /// <summary>
-        /// Returns the cached target if no new evaluation is required.
-        /// </summary>
+        
         public bool TryGetCachedTarget(out WayPointView waypoint, out float eta, out float score)
         {
             waypoint = _cachedBestWaypoint;
             eta = _cachedBestEta;
             score = _cachedBestScore;
+            
             return waypoint != null;
         }
-
-        /// <summary>
-        /// Updates the internal state using the freshly computed raw scores.
-        /// </summary>
-        public void ProcessEvaluation(
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            Dictionary<WayPointView, float> rawScores,
-            out WayPointView finalTarget,
-            out float finalScore,
-            out float finalEta)
+        
+        public void ProcessEvaluation(Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> rawScores, out WayPointView finalTarget, out float finalScore, out float finalEta)
         {
             if (metrics == null || rawScores == null || rawScores.Count == 0)
             {
@@ -100,6 +87,7 @@ namespace Teams.ActarusControllerV2.pierre
 
             if (waypoint == _currentTarget)
                 adjustedScore += AIConstants.CurrentTargetBonus;
+            
             else if (_lastVisited.TryGetValue(waypointIndex, out float lastTime))
             {
                 float elapsed = Time.time - lastTime;
@@ -126,12 +114,7 @@ namespace Teams.ActarusControllerV2.pierre
             return value;
         }
 
-        private void ApplyHysteresis(
-            Dictionary<WayPointView, float> scoredTargets,
-            WayPointView evaluatedBest,
-            float evaluatedScore,
-            float evaluatedEta,
-            Dictionary<WayPointView, WaypointMetrics> metrics)
+        private void ApplyHysteresis(Dictionary<WayPointView, float> scoredTargets, WayPointView evaluatedBest, float evaluatedScore, float evaluatedEta, Dictionary<WayPointView, WaypointMetrics> metrics)
         {
             WayPointView previousTarget = _currentTarget;
             float previousScore = _currentTargetScore;
@@ -171,9 +154,8 @@ namespace Teams.ActarusControllerV2.pierre
                 else
                 {
                     float improvement = finalScore - previousScore;
-                    float ratio = previousScore <= 0f
-                        ? improvement
-                        : improvement / Mathf.Max(Mathf.Abs(previousScore), 0.0001f);
+                    float ratio = previousScore <= 0f ? improvement : improvement / Mathf.Max(Mathf.Abs(previousScore), 0.0001f);
+                    
                     bool lockActive = now < _targetLockUntil;
                     float improvementThreshold = lockActive ? AIConstants.TargetSwitchBias : AIConstants.TargetSwitchBias * 0.5f;
                     float ratioThreshold = lockActive ? AIConstants.TargetSwitchRatioLocked : AIConstants.TargetSwitchRatioFree;
@@ -181,14 +163,21 @@ namespace Teams.ActarusControllerV2.pierre
                     float previousEta = float.PositiveInfinity;
                     if (metrics.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
                         previousEta = prevMetrics.TravelTime;
+                    
                     bool etaWin = finalEta + AIConstants.TargetEtaAdvantage < previousEta;
 
                     if (improvement < improvementThreshold && !etaWin)
-                        keepPrevious = true;
+                    {
+                        keepPrevious = true;   
+                    }
                     else if (ratio < ratioThreshold && !etaWin)
-                        keepPrevious = true;
+                    {
+                        keepPrevious = true;   
+                    }
                     else if (now - _lastTargetUpdateTime < AIConstants.TargetHoldMin * 0.5f && !etaWin)
-                        keepPrevious = true;
+                    {
+                        keepPrevious = true;   
+                    }
                 }
 
                 if (keepPrevious)
@@ -216,6 +205,7 @@ namespace Teams.ActarusControllerV2.pierre
                     _currentTargetScore = finalScore;
                     _lastTargetUpdateTime = now;
                     _targetLockUntil = now + Mathf.Lerp(AIConstants.TargetHoldMin, AIConstants.TargetHoldMax, Mathf.Clamp01(finalScore));
+                    
                     if (metrics.TryGetValue(finalTarget, out WaypointMetrics finalMetrics))
                         Debug.Log($"Selected target: WP#{finalMetrics.Index} ETA={finalEta:F1}s Score={finalScore:F2}");
                 }
@@ -223,13 +213,6 @@ namespace Teams.ActarusControllerV2.pierre
                 {
                     _currentTargetScore = finalScore;
                 }
-            }
-            else if (previousTarget != null)
-            {
-                MarkVisited(previousTarget, metrics);
-                _currentTarget = null;
-                _currentTargetScore = float.MinValue;
-                _targetLockUntil = 0f;
             }
         }
 
