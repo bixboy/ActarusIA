@@ -290,7 +290,7 @@ namespace DoNotModify
 		{
 			if (_energy < _mineEnergyCost)
 				return;
-			GameObject.Instantiate(minePrefab, transform.position, Quaternion.identity);
+			Instantiate(minePrefab, transform.position, Quaternion.identity);
 			_energy -= _mineEnergyCost;
 			dropMineAudio?.Play();
             _hasDroppedMine = true;

@@ -17,7 +17,9 @@ namespace Teams.ActarusController.Shahine
         public List<AsteroidView> asteroids;
 
         public WayPointView targetWaypoint;
+        public WayPointView lastWayPoint;
         public float distanceToTarget;
+        public float distanceToLastTarget;
         public float energy;
         public float timeLeft;
 
@@ -53,6 +55,7 @@ namespace Teams.ActarusController.Shahine
             
             if (targetWaypoint == null || targetWaypoint.Owner == myShip.Owner)
             {
+                lastWayPoint = targetWaypoint;
                 targetWaypoint = data.WayPoints
                     .Where(w => w.Owner != myShip.Owner)
                     .OrderBy(w => Vector2.Distance(myShip.Position, w.Position))
@@ -61,6 +64,9 @@ namespace Teams.ActarusController.Shahine
 
             if (targetWaypoint != null)
                 distanceToTarget = Vector2.Distance(myShip.Position, targetWaypoint.Position);
+            if (lastWayPoint != null)
+                distanceToLastTarget = Vector2.Distance(myShip.Position, lastWayPoint.Position);
+                
         }
         
         public static Vector2 AngleToDir(float degrees)
