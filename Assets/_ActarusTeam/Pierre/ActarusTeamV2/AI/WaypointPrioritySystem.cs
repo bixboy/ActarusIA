@@ -144,58 +144,58 @@ namespace Teams.ActarusControllerV2.pierre
         private float ComputeGroupScore(SpaceShipView self, GameData data, List<WayPointView> group)
         {
             if (group == null || group.Count == 0)
-            {
                 return float.MinValue;
-            }
 
             int enemyCount = 0;
             int neutralCount = 0;
+            int allyCount = 0;
             Vector2 centroid = Vector2.zero;
-            float distanceAccumulator = 0f;
+            float avgDistance = 0f;
 
-            foreach (WayPointView waypoint in group)
+            foreach (var wp in group)
             {
-                if (waypoint == null)
-                {
-                    continue;
-                }
+                if (wp == null) continue;
+                centroid += wp.Position;
+                avgDistance += Vector2.Distance(self.Position, wp.Position);
 
-                centroid += waypoint.Position;
-                distanceAccumulator += DistanceFactor(self, waypoint);
-
-                if (waypoint.Owner == -1)
-                {
-                    neutralCount++;
-                }
-                else if (waypoint.Owner != self.Owner)
-                {
-                    enemyCount++;
-                }
+                if (wp.Owner == -1) neutralCount++;
+                else if (wp.Owner == self.Owner) allyCount++;
+                else enemyCount++;
             }
 
-            int effectiveCount = group.Count;
-            if (effectiveCount == 0)
-            {
-                return float.MinValue;
-            }
+            int total = group.Count;
+            centroid /= total;
+            avgDistance /= total;
 
-            centroid /= effectiveCount;
-            float averageDistanceScore = distanceAccumulator / effectiveCount;
-
-            float enemyRatio = effectiveCount > 0 ? (float)enemyCount / effectiveCount : 0f;
-            float neutralRatio = effectiveCount > 0 ? (float)neutralCount / effectiveCount : 0f;
-
+            // ---- Facteurs environnementaux ----
             float danger = DangerFactor(self, data, centroid);
-            float allyPresence = AllyProximityFactor(self, data, centroid);
             float accessibility = OpenAreaFactor(self, data, centroid);
+            float allyPresence = AllyProximityFactor(self, data, centroid);
 
+            // ---- Facteur pression ennemie ----
+            float enemyPressure = 0f;
+            foreach (var ship in data.SpaceShips)
+            {
+                if (ship == null || ship.Owner == self.Owner) continue;
+                float dist = Vector2.Distance(ship.Position, centroid);
+                if (dist < 8f)
+                    enemyPressure += 1f - Mathf.Clamp01(dist / 8f);
+            }
+            enemyPressure = Mathf.Clamp01(enemyPressure);
+
+            // ---- Facteur de contexte dynamique ----
+            float distanceFactor = 1f - Mathf.Clamp01(avgDistance / DistanceNormalization);
+            float captureUrgency = Mathf.Clamp01((float)enemyCount / total * 1.2f + (float)neutralCount / total * 0.8f);
+            float allyOvercrowding = Mathf.Clamp01(allyPresence * 1.2f);
+
+            // ---- Score pondéré ----
             float score = 0f;
-            score += enemyRatio * EnemyWeight;
-            score += neutralRatio * NeutralWeight;
-            score += averageDistanceScore * DistanceWeight;
-            score -= danger * DangerWeight;
-            score += accessibility * AccessibilityWeight;
-            score -= allyPresence * AllyPresenceWeight;
+            score += captureUrgency * 0.6f;               // favorise les groupes avec des points neutres/ennemis
+            score += distanceFactor * 0.4f;               // plus proche = mieux
+            score += accessibility * 0.3f;                // plus ouvert = mieux
+            score -= danger * 0.5f;                       // zones dangereuses = moins bien
+            score -= enemyPressure * 0.3f;                // trop d'ennemis autour = évite
+            score -= allyOvercrowding * 0.25f;            // trop d'alliés = pas prioritaire
 
             return score;
         }
@@ -205,22 +205,33 @@ namespace Teams.ActarusControllerV2.pierre
             WayPointView best = null;
             float bestScore = float.MinValue;
 
-            foreach (WayPointView waypoint in group)
+            foreach (var wp in group)
             {
-                float distanceScore = DistanceFactor(self, waypoint);
-                float controlScore = ControlFactor(self, waypoint);
-                float safetyScore = 1f - DangerFactor(self, data, waypoint.Position);
-                float orientationScore = OrientationFactorRelativeToEnemy(self, data, waypoint);
+                if (wp == null) continue;
 
-                float score = distanceScore * IndividualDistanceWeight
-                              + controlScore * IndividualControlWeight
-                              + Mathf.Clamp01(safetyScore) * IndividualSafetyWeight
-                              + orientationScore * IndividualOrientationWeight;
+                float distanceScore = DistanceFactor(self, wp);
+                float safetyScore = 1f - DangerFactor(self, data, wp.Position);
+                float controlScore = ControlFactor(self, wp);
+                float openArea = OpenAreaFactor(self, data, wp.Position);
+
+                // Bonus si le waypoint est au centre du cluster (plus facile à défendre)
+                Vector2 centroid = Vector2.zero;
+                foreach (var g in group) centroid += g.Position;
+                centroid /= group.Count;
+                float centroidBias = 1f - Mathf.Clamp01(Vector2.Distance(centroid, wp.Position) / 5f);
+
+                // pondération améliorée
+                float score = 0f;
+                score += controlScore * 0.45f;            // priorité à capturer un ennemi ou neutre
+                score += safetyScore * 0.25f;             // éviter les pièges
+                score += distanceScore * 0.20f;           // proche = mieux
+                score += openArea * 0.15f;                // zone dégagée
+                score += centroidBias * 0.1f;             // central = stable
 
                 if (score > bestScore)
                 {
                     bestScore = score;
-                    best = waypoint;
+                    best = wp;
                 }
             }
 
@@ -485,54 +496,77 @@ namespace Teams.ActarusControllerV2.pierre
             float rad = orientationDegrees * Mathf.Deg2Rad;
             return new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
         }
-        
-        
+
+
         // ──────────── DEBUG VISUALIZATION ────────────
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
         private void DrawDebug(SpaceShipView self, List<WayPointView> bestGroup, WayPointView bestWaypoint)
         {
-            // Draw clusters
-            foreach (var cluster in _lastClusters)
+            if (self == null) return;
+
+            const float lineDuration = 0.1f;
+            const float textOffset = 0.8f;
+
+            // ─────────────── CLUSTERS ───────────────
+            for (int i = 0; i < _lastClusters.Count; i++)
             {
-                Color clusterColor = new(Random.value, Random.value, Random.value, 0.5f);
+                var cluster = _lastClusters[i];
+                if (cluster.Count == 0) continue;
+
+                // Couleur douce et translucide
+                Color clusterColor = new Color(0.3f, 0.6f, 1f, 0.25f);
+
+                // Calcul du centroïde pour affichage
+                Vector2 centroid = Vector2.zero;
                 foreach (var wp in cluster)
+                    centroid += wp.Position;
+                centroid /= cluster.Count;
+
+                // Score moyen (trouvé dans _lastGroupScores)
+                float score = 0f;
+                foreach (var (pos, val) in _lastGroupScores)
                 {
-                    Debug.DrawLine(self.Position, wp.Position, clusterColor, 0.1f);
-                    foreach (var other in cluster)
+                    if ((pos - centroid).sqrMagnitude < 0.5f)
                     {
-                        if (wp == other) continue;
-                        Debug.DrawLine(wp.Position, other.Position, DebugClusterLinkColor, 0.1f);
+                        score = val;
+                        break;
                     }
-                    DebugExtension.DrawSphere(wp.Position, clusterColor, DebugSphereSize);
+                }
+
+                // Sphère de cluster + texte score
+                DebugExtension.DrawSphere(centroid, clusterColor, DebugSphereSize * 0.7f);
+                if (score != 0)
+                {
+                    Color txtColor = Color.Lerp(Color.red, Color.green, Mathf.InverseLerp(-1f, 1f, score));
+                    DebugExtension.DrawText(centroid + Vector2.up * textOffset, $"Cluster {i}\nS={score:F2}", txtColor,
+                        0.9f);
+                }
+
+                // Si c’est le meilleur cluster, le surligner
+                if (bestGroup != null && cluster == bestGroup)
+                {
+                    foreach (var wp in cluster)
+                    {
+                        Debug.DrawLine(self.Position, wp.Position, DebugBestClusterColor, lineDuration);
+                        DebugExtension.DrawSphere(wp.Position, DebugBestClusterColor, DebugSphereSize);
+                    }
+                }
+                else
+                {
+                    // Sinon juste des sphères discrètes
+                    foreach (var wp in cluster)
+                        DebugExtension.DrawSphere(wp.Position, clusterColor, DebugSphereSize * 0.5f);
                 }
             }
 
-            // Draw centroids with scores
-            foreach (var (pos, score) in _lastGroupScores)
-            {
-                Color c = Color.Lerp(Color.red, Color.green, Mathf.Clamp01((score + 1f) * 0.5f));
-                DebugExtension.DrawSphere(pos, c, DebugSphereSize * 0.8f);
-                DebugExtension.DrawText(pos + Vector2.up * 0.5f, $"S={score:F2}", c, DebugTextSize);
-            }
-
-            // Highlight best group
-            if (bestGroup != null)
-            {
-                foreach (var wp in bestGroup)
-                    Debug.DrawLine(self.Position, wp.Position, DebugBestClusterColor, 0.1f);
-            }
-
-            // Highlight chosen waypoint
+            // ─────────────── WAYPOINT CHOISI ───────────────
             if (bestWaypoint != null)
             {
-                Debug.DrawLine(self.Position, bestWaypoint.Position, DebugBestWaypointColor, 0.1f);
-                DebugExtension.DrawSphere(bestWaypoint.Position, DebugBestWaypointColor, DebugSphereSize * 1.5f);
-                DebugExtension.DrawText(bestWaypoint.Position + Vector2.up * 0.7f, "★ TARGET", DebugBestWaypointColor, 1.1f);
+                Debug.DrawLine(self.Position, bestWaypoint.Position, DebugBestWaypointColor, lineDuration);
+                DebugExtension.DrawSphere(bestWaypoint.Position, DebugBestWaypointColor, DebugSphereSize * 1.4f);
+                DebugExtension.DrawText(bestWaypoint.Position + Vector2.up * textOffset, "★ TARGET",
+                    DebugBestWaypointColor, 1.1f);
             }
         }
-
-        // ──────────── Rest of your Utils (unchanged) ────────────
-        // ... (DistanceFactor, DangerFactor, etc. — tu gardes tout pareil)
-        // ⚠️ n'oublie pas d'ajouter le script DebugExtension ci-dessous dans ton projet
     }
 }
