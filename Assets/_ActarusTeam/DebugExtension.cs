@@ -8,13 +8,9 @@ public static class DebugExtension
         Debug.DrawLine(pos + Vector2.right * radius, pos - Vector2.right * radius, color, duration);
     }
 
-    // 👇 version "safe" sans GUI
-    public static void DrawText(Vector2 position, string text, Color color, float size = 0.7f)
+    public static void DrawText(Vector2 position, string text, Color color, float size = 0.7f, float duration = 0.05f)
     {
-        // En mode debug : juste affiche dans la console
-        // (évite les GUI calls hors OnGUI)
-#if UNITY_EDITOR
-        UnityEngine.Debug.DrawLine(position, position + Vector2.up * 0.3f, color, 0.05f);
-#endif
+        Debug.DrawLine(position, position + Vector2.up * 0.3f, color, duration);
     }
+
 }
