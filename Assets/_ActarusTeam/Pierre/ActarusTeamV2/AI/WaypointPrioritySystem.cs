@@ -5,52 +5,64 @@ using DoNotModify;
 namespace Teams.ActarusControllerV2.pierre
 {
     /// <summary>
-    /// Strategic selector that evaluates capture waypoints and returns the most valuable target.
-    /// Tailored for a duel situation (one player ship versus enemy ships).
+    /// Strategic selector that evaluates every waypoint and returns the highest value capture target.
+    /// Tailored for a duel environment: one player controlled ship versus hostile ships only.
     /// </summary>
     public sealed class WaypointPrioritySystem
     {
         // ────────────────────────────── Tunable constants ──────────────────────────────
         private const float EvaluationInterval = 0.25f;
-        private const float ClusterDistanceThreshold = 3.5f;
-
         private const float DistanceNormalization = 14f;
         private const float TravelTimeNormalization = 7.5f;
         private const float FastArrivalThreshold = 3f;
         private const float SlowArrivalThreshold = 10f;
         private const float CentralityNormalization = 12f;
         private const float MemoryCooldown = 8f;
+        private const float EndgameTimeHorizon = 25f;
 
         private const float MineDangerReach = 4f;
         private const float AsteroidBuffer = 1.25f;
         private const float ProjectileAvoidanceRadius = 1.4f;
-        private const float DangerPredictionHorizon = 2.75f;
-        private const float EnemyPressureRadius = 8f;
+        private const float DangerPredictionHorizon = 3f;
+        private const float EnemyPressureRadius = 8.5f;
+        private const float EnemyInterceptRadius = 9.5f;
+        private const float EnemyFireLaneReach = 11f;
 
-        // Group weights
-        private const float GroupEnemyControlWeight = 0.85f;
-        private const float GroupNeutralControlWeight = 0.55f;
-        private const float GroupDistanceWeight = 0.55f;
-        private const float GroupDangerWeight = 0.65f;
-        private const float GroupOpenAreaWeight = 0.35f;
-        private const float GroupEnemyArrivalWeight = 0.6f;
-        private const float GroupCentralityWeight = 0.25f;
-        private const float GroupEnemyPressurePenalty = 0.4f;
+        private const float MineDangerWeight = 1.1f;
+        private const float AsteroidDangerWeight = 0.7f;
+        private const float ProjectileDangerWeight = 1.25f;
+        private const float EnemyLaneDangerWeight = 1.35f;
 
-        // Individual weights
-        private const float IndividualControlWeight = 0.6f;
-        private const float IndividualDistanceWeight = 0.32f;
-        private const float IndividualSafetyWeight = 0.28f;
-        private const float IndividualOpenAreaWeight = 0.18f;
-        private const float IndividualOrientationWeight = 0.12f;
-        private const float IndividualApproachWeight = 0.1f;
-        private const float IndividualTravelWeight = 0.35f;
-        private const float IndividualEnemyArrivalWeight = 0.42f;
-        private const float IndividualCentralityWeight = 0.15f;
+        private const float ControlWeight = 1.15f;
+        private const float CaptureSwingWeight = 0.9f;
+        private const float DistanceWeight = 0.45f;
+        private const float SafetyWeight = 0.55f;
+        private const float DangerPenaltyWeight = 0.35f;
+        private const float OpenAreaWeight = 0.3f;
+        private const float CentralityWeight = 0.25f;
+        private const float TravelWeight = 0.65f;
+        private const float EnemyArrivalWeight = 0.7f;
+        private const float ContestWeight = 0.3f;
+        private const float OrientationWeight = 0.18f;
+        private const float ApproachWeight = 0.12f;
+        private const float EnemyPressurePenalty = 0.55f;
+        private const float EnemyInterceptPenalty = 0.45f;
+        private const float EndgameSwingWeight = 0.4f;
+        private const float UncontestedBonus = 0.18f;
+        private const float QuickCaptureBonus = 0.25f;
+        private const float SlowArrivalPenalty = 0.25f;
 
-        private const float MemoryPenaltyMultiplier = 0.6f;
-        private const float TargetPersistenceTime = 1.75f;
-        private const float TargetSwitchMargin = 0.2f;
+        private const float ScoreSmoothing = 0.55f;
+        private const float ScoreMomentumWeight = 0.18f;
+        private const float MemoryPenaltyMultiplier = 0.5f;
+        private const float CurrentTargetBonus = 0.2f;
+
+        private const float TargetSwitchBias = 0.22f;
+        private const float TargetSwitchRatioLocked = 0.18f;
+        private const float TargetSwitchRatioFree = 0.08f;
+        private const float TargetEtaAdvantage = 0.7f;
+        private const float TargetHoldMin = 1.2f;
+        private const float TargetHoldMax = 2.6f;
 
         // Debug display
         private const float DebugSphereSize = 0.3f;
@@ -60,14 +72,18 @@ namespace Teams.ActarusControllerV2.pierre
 
         // ────────────────────────────── Runtime caches ──────────────────────────────
         private readonly Dictionary<int, float> _lastVisited = new();
+        private readonly Dictionary<int, float> _smoothedScores = new();
+        private readonly Dictionary<int, float> _rawScores = new();
         private readonly Dictionary<WayPointView, WaypointMetrics> _metricsCache = new();
 
         private WayPointView _cachedBestWaypoint;
         private float _cachedBestScore;
         private float _cachedBestEta;
+
         private WayPointView _currentTarget;
         private float _currentTargetScore = float.MinValue;
         private float _lastTargetUpdateTime;
+        private float _targetLockUntil;
         private float _nextEvaluationTime;
 
         private struct WaypointMetrics
@@ -77,102 +93,19 @@ namespace Teams.ActarusControllerV2.pierre
             public Vector2 Position;
             public float DistanceFactor;
             public float Danger;
+            public float Safety;
             public float OpenArea;
             public float Centrality;
             public float TravelTime;
             public float TravelFactor;
             public float EnemyEta;
-            public float ArrivalAdvantage; // [-1,1] positive when we beat enemies
-        }
-
-        /// <summary>
-        /// Keeps the current objective unless a rival waypoint is significantly better for long enough.
-        /// Prevents oscillations by applying score hysteresis and a short lock duration to the active target.
-        /// </summary>
-        private void ApplyHysteresis(
-            Dictionary<WayPointView, float> combinedScores,
-            WayPointView evaluatedBest,
-            float evaluatedScore,
-            float evaluatedEta)
-        {
-            WayPointView previousTarget = _currentTarget;
-            float previousScore = _currentTargetScore;
-
-            WayPointView finalTarget = evaluatedBest;
-            float finalScore = evaluatedScore;
-            float finalEta = evaluatedEta;
-
-            if (previousTarget != null)
-            {
-                float previousCombinedScore = previousScore;
-                if (combinedScores != null && combinedScores.TryGetValue(previousTarget, out float storedScore))
-                    previousCombinedScore = storedScore;
-
-                bool keepPrevious = false;
-
-                if (finalTarget == null)
-                {
-                    keepPrevious = _metricsCache.ContainsKey(previousTarget);
-                }
-                else if (finalTarget == previousTarget)
-                {
-                    keepPrevious = true;
-                    finalScore = previousCombinedScore;
-                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
-                        finalEta = prevMetrics.TravelTime;
-                }
-                else
-                {
-                    float scoreGap = finalScore - previousCombinedScore;
-                    float timeHeld = Time.time - _lastTargetUpdateTime;
-                    if (scoreGap < TargetSwitchMargin && timeHeld < TargetPersistenceTime)
-                    {
-                        keepPrevious = _metricsCache.ContainsKey(previousTarget);
-                    }
-                }
-
-                if (keepPrevious)
-                {
-                    finalTarget = previousTarget;
-                    finalScore = combinedScores != null && combinedScores.TryGetValue(previousTarget, out float prevScore)
-                        ? prevScore
-                        : previousScore;
-                    finalEta = _cachedBestEta;
-
-                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
-                        finalEta = prevMetrics.TravelTime;
-                }
-            }
-
-            _cachedBestWaypoint = finalTarget;
-            _cachedBestScore = finalScore;
-            _cachedBestEta = finalEta;
-
-            if (finalTarget != null)
-            {
-                bool targetChanged = finalTarget != previousTarget;
-                if (targetChanged && previousTarget != null)
-                    MarkVisited(previousTarget);
-
-                if (targetChanged)
-                {
-                    _currentTarget = finalTarget;
-                    _currentTargetScore = finalScore;
-                    _lastTargetUpdateTime = Time.time;
-                    if (_metricsCache.TryGetValue(finalTarget, out WaypointMetrics metrics))
-                        Debug.Log($"Selected target: WP#{metrics.Index} ETA={_cachedBestEta:F1}s Score={_cachedBestScore:F2}");
-                }
-                else
-                {
-                    _currentTargetScore = finalScore;
-                }
-            }
-            else if (previousTarget != null)
-            {
-                MarkVisited(previousTarget);
-                _currentTarget = null;
-                _currentTargetScore = float.MinValue;
-            }
+            public float ArrivalAdvantage;
+            public float EnemyPressure;
+            public float InterceptThreat;
+            public float Control;
+            public float CaptureSwing;
+            public float Orientation;
+            public float Approach;
         }
 
         // ────────────────────────────── Public API ──────────────────────────────
@@ -181,7 +114,6 @@ namespace Teams.ActarusControllerV2.pierre
             if (self == null || data?.WayPoints == null || data.WayPoints.Count == 0)
                 return null;
 
-            // Rate-limit the heavy evaluation.
             if (Time.time < _nextEvaluationTime && _cachedBestWaypoint != null)
             {
                 DrawDebug(self, _cachedBestWaypoint, _cachedBestEta, _cachedBestScore);
@@ -191,36 +123,23 @@ namespace Teams.ActarusControllerV2.pierre
             RebuildMetrics(self, data);
 
             float deficitFactor = ScoreDeficitFactor(self, data); // 0 (ahead) → 1 (behind)
-            float aggressionBias = Mathf.Lerp(0.8f, 1.3f, deficitFactor);
+            float aggressionBias = Mathf.Lerp(0.75f, 1.4f, deficitFactor);
+            float cautionBias = Mathf.Lerp(1.35f, 0.8f, deficitFactor);
+            float endgameUrgency = EndgameUrgency(data);
 
-            List<List<WayPointView>> groups = ClusterWaypoints(data.WayPoints);
-            Dictionary<WayPointView, float> combinedScores = new();
+            Dictionary<WayPointView, float> scoredTargets = new();
+            WayPointView evaluatedBest = EvaluateWaypoints(
+                self,
+                data,
+                deficitFactor,
+                aggressionBias,
+                cautionBias,
+                endgameUrgency,
+                scoredTargets,
+                out float bestScore,
+                out float bestEta);
 
-            WayPointView bestEvaluated = null;
-            float bestEvaluatedScore = float.MinValue;
-            float bestEvaluatedEta = float.PositiveInfinity;
-
-            foreach (List<WayPointView> group in groups)
-            {
-                if (group == null || group.Count == 0)
-                    continue;
-
-                float groupScore = ComputeGroupScore(self, data, group, aggressionBias, deficitFactor);
-                WayPointView candidate = SelectBestInGroup(self, data, group, aggressionBias, deficitFactor, groupScore, combinedScores, out float candidateScore, out float eta);
-                if (candidate == null)
-                    continue;
-
-                float combinedScore = groupScore + candidateScore;
-
-                if (combinedScore <= bestEvaluatedScore)
-                    continue;
-
-                bestEvaluatedScore = combinedScore;
-                bestEvaluated = candidate;
-                bestEvaluatedEta = eta;
-            }
-
-            ApplyHysteresis(combinedScores, bestEvaluated, bestEvaluatedScore, bestEvaluatedEta);
+            ApplyHysteresis(scoredTargets, evaluatedBest, bestScore, bestEta);
 
             _nextEvaluationTime = Time.time + EvaluationInterval;
 
@@ -246,174 +165,160 @@ namespace Teams.ActarusControllerV2.pierre
 
                 Vector2 position = waypoint.Position;
 
-                float danger = DangerFactor(data, position);
+                float danger = DangerFactor(self, data, position);
                 float openArea = OpenAreaFactor(self, data, position);
                 float distanceFactor = DistanceFactor(self.Position, position);
                 float centrality = CentralityFactor(position, mapCenter);
-                float travelTime = EstimateTravelTime(self, data, waypoint, danger, openArea);
+                float enemyPressure = EnemyPressureField(data, self, position);
+                float interceptThreat = EnemyInterceptFactor(self, data, waypoint);
+                float control = ControlFactor(self, waypoint);
+                float captureSwing = CaptureSwingFactor(self, waypoint);
+                float orientation = OrientationFactorRelativeToEnemy(self, data, waypoint);
+                float approach = ApproachAlignmentFactor(self, waypoint);
+
+                float travelTime = EstimateTravelTime(self, data, waypoint, danger, openArea, enemyPressure);
                 float travelFactor = ComputeTravelFactor(travelTime);
-                float enemyEta = PredictEnemyArrival(self, data, waypoint, danger, openArea);
+
+                float enemyEta = PredictEnemyArrival(self, data, waypoint);
                 float arrivalAdvantage = ComputeArrivalAdvantage(travelTime, enemyEta);
 
-                _metricsCache[waypoint] = new WaypointMetrics
+                WaypointMetrics metrics = new WaypointMetrics
                 {
                     Waypoint = waypoint,
                     Index = i,
                     Position = position,
                     DistanceFactor = distanceFactor,
                     Danger = danger,
+                    Safety = 1f - danger,
                     OpenArea = openArea,
                     Centrality = centrality,
                     TravelTime = travelTime,
                     TravelFactor = travelFactor,
                     EnemyEta = enemyEta,
-                    ArrivalAdvantage = arrivalAdvantage
+                    ArrivalAdvantage = arrivalAdvantage,
+                    EnemyPressure = enemyPressure,
+                    InterceptThreat = interceptThreat,
+                    Control = control,
+                    CaptureSwing = captureSwing,
+                    Orientation = orientation,
+                    Approach = approach
                 };
+
+                _metricsCache[waypoint] = metrics;
             }
         }
 
-        private float ComputeGroupScore(
+        private WayPointView EvaluateWaypoints(
             SpaceShipView self,
             GameData data,
-            List<WayPointView> group,
-            float aggressionBias,
-            float deficitFactor)
-        {
-            int enemyOwned = 0;
-            int neutral = 0;
-            int selfOwned = 0;
-            float distanceSum = 0f;
-            float dangerSum = 0f;
-            float openAreaSum = 0f;
-            float centralitySum = 0f;
-            float bestArrivalAdvantage = float.NegativeInfinity;
-            float bestTravel = float.PositiveInfinity;
-            Vector2 centroid = Vector2.zero;
-
-            foreach (WayPointView waypoint in group)
-            {
-                if (waypoint == null || !_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
-                    continue;
-
-                if (waypoint.Owner == self.Owner) selfOwned++;
-                else if (waypoint.Owner == -1) neutral++;
-                else enemyOwned++;
-
-                distanceSum += metrics.DistanceFactor;
-                dangerSum += metrics.Danger;
-                openAreaSum += metrics.OpenArea;
-                centralitySum += metrics.Centrality;
-                bestArrivalAdvantage = Mathf.Max(bestArrivalAdvantage, metrics.ArrivalAdvantage);
-                bestTravel = Mathf.Min(bestTravel, metrics.TravelTime);
-                centroid += metrics.Position;
-            }
-
-            int count = group.Count;
-            if (count == 0)
-                return float.MinValue;
-
-            centroid /= count;
-
-            float avgDistance = distanceSum / count;
-            float avgDanger = dangerSum / count;
-            float avgOpen = openAreaSum / count;
-            float avgCentrality = centralitySum / count;
-
-            float enemyRatio = count > 0 ? (float)enemyOwned / count : 0f;
-            float neutralRatio = count > 0 ? (float)neutral / count : 0f;
-            float selfRatio = count > 0 ? (float)selfOwned / count : 0f;
-
-            float enemyPressure = EnemyPressure(data, self, centroid);
-
-            float score = 0f;
-            score += enemyRatio * GroupEnemyControlWeight * Mathf.Lerp(0.9f, 1.25f, deficitFactor); // more enemy focus when behind
-            score += neutralRatio * GroupNeutralControlWeight * Mathf.Lerp(1.2f, 0.85f, deficitFactor); // secure neutrals when ahead
-            score += avgDistance * GroupDistanceWeight * Mathf.Lerp(1.2f, 0.85f, deficitFactor);      // stick to nearby points when leading
-            score += avgOpen * GroupOpenAreaWeight * Mathf.Lerp(1.15f, 0.85f, deficitFactor);         // safer lanes when calm
-            score += avgCentrality * GroupCentralityWeight * Mathf.Lerp(0.9f, 1.1f, deficitFactor);    // center control in comeback
-            score += Mathf.Clamp(bestArrivalAdvantage, -1f, 1f) * GroupEnemyArrivalWeight * aggressionBias;
-
-            score -= avgDanger * GroupDangerWeight * Mathf.Lerp(1.25f, 0.7f, deficitFactor);           // very cautious when leading
-            score -= enemyPressure * GroupEnemyPressurePenalty * Mathf.Lerp(1.1f, 0.65f, deficitFactor);
-            score -= selfRatio * Mathf.Lerp(0.6f, 0.2f, deficitFactor);                                // abandon owned points when possible
-
-            // Slight preference to groups we can reach quickly
-            if (!float.IsInfinity(bestTravel))
-            {
-                float travelFactor = 1f - Mathf.Clamp01(bestTravel / TravelTimeNormalization);
-                score += travelFactor * Mathf.Lerp(0.35f, 0.55f, deficitFactor);
-            }
-
-            return score;
-        }
-
-        private WayPointView SelectBestInGroup(
-            SpaceShipView self,
-            GameData data,
-            List<WayPointView> group,
-            float aggressionBias,
             float deficitFactor,
-            float groupScore,
-            Dictionary<WayPointView, float> combinedScores,
+            float aggressionBias,
+            float cautionBias,
+            float endgameUrgency,
+            Dictionary<WayPointView, float> scoredTargets,
             out float bestScore,
-            out float eta)
+            out float bestEta)
         {
+            _ = self;
+            _ = data;
+
             bestScore = float.MinValue;
-            eta = float.PositiveInfinity;
+            bestEta = float.PositiveInfinity;
             WayPointView bestWaypoint = null;
 
-            foreach (WayPointView waypoint in group)
+            foreach (WaypointMetrics metrics in _metricsCache.Values)
             {
-                if (waypoint == null || !_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
-                    continue;
+                float rawScore = EvaluateWaypointScore(metrics, deficitFactor, aggressionBias, cautionBias, endgameUrgency);
 
-                float control = ControlFactor(self, waypoint);
-                float safety = 1f - metrics.Danger;
-                float orientation = OrientationFactorRelativeToEnemy(self, data, waypoint);
-                float approach = ApproachAlignmentFactor(self, waypoint);
+                float momentumBonus = 0f;
+                if (_rawScores.TryGetValue(metrics.Index, out float previousRaw))
+                    momentumBonus = (rawScore - previousRaw) * ScoreMomentumWeight;
+                _rawScores[metrics.Index] = rawScore;
 
-                float score = 0f;
-                score += control * IndividualControlWeight * aggressionBias;                                              // enemy > neutral > owned
-                score += metrics.DistanceFactor * IndividualDistanceWeight * Mathf.Lerp(1.2f, 0.9f, deficitFactor);        // prioritize nearby when leading
-                score += safety * IndividualSafetyWeight * Mathf.Lerp(1.35f, 0.8f, deficitFactor);                         // avoid risk when in front
-                score += metrics.OpenArea * IndividualOpenAreaWeight * Mathf.Lerp(1.2f, 0.85f, deficitFactor);              // prefer clean lanes when calm
-                score += orientation * IndividualOrientationWeight;                                                    // attack enemies from blind spots
-                score += approach * IndividualApproachWeight;                                                          // less steering corrections
-                score += metrics.TravelFactor * IndividualTravelWeight * Mathf.Lerp(0.9f, 1.25f, deficitFactor);          // push for fast captures when behind
-                score += metrics.ArrivalAdvantage * IndividualEnemyArrivalWeight * Mathf.Lerp(0.85f, 1.2f, deficitFactor); // beat enemies to point
-                score += metrics.Centrality * IndividualCentralityWeight * Mathf.Lerp(0.9f, 1.1f, deficitFactor);          // reinforce central map presence
+                float adjustedScore = rawScore + momentumBonus;
+                adjustedScore *= MemoryMultiplier(metrics.Index, metrics.Waypoint);
+                if (metrics.Waypoint == _currentTarget)
+                    adjustedScore += CurrentTargetBonus;
 
-                float memoryMultiplier = MemoryMultiplier(metrics.Index, waypoint);
-                score *= memoryMultiplier;
+                float smoothedScore = SmoothScore(metrics.Index, adjustedScore);
+                scoredTargets[metrics.Waypoint] = smoothedScore;
 
-                float combinedScore = groupScore + score;
-                combinedScores[waypoint] = combinedScore;
-
-                if (score > bestScore)
+                if (smoothedScore > bestScore)
                 {
-                    bestScore = score;
-                    bestWaypoint = waypoint;
-                    eta = metrics.TravelTime;
+                    bestScore = smoothedScore;
+                    bestWaypoint = metrics.Waypoint;
+                    bestEta = metrics.TravelTime;
                 }
             }
 
             return bestWaypoint;
         }
 
-        // ────────────────────────────── Scoring helpers ──────────────────────────────
+        private float EvaluateWaypointScore(
+            WaypointMetrics metrics,
+            float deficitFactor,
+            float aggressionBias,
+            float cautionBias,
+            float endgameUrgency)
+        {
+            float scoreboardBias = Mathf.Lerp(0.85f, 1.35f, deficitFactor);
+            float distanceBias = Mathf.Lerp(1.15f, 0.85f, deficitFactor);
+            float safetyBias = Mathf.Lerp(1.3f, 0.75f, deficitFactor);
+            float timeBias = Mathf.Lerp(1f, 1.2f, endgameUrgency);
+            float centralityBias = Mathf.Lerp(0.9f, 1.15f, endgameUrgency);
+            float contestBias = Mathf.Lerp(0.85f, 1.25f, deficitFactor);
+
+            float score = 0f;
+            score += metrics.Control * ControlWeight * scoreboardBias;                                           // prefer hostile points
+            score += metrics.CaptureSwing * CaptureSwingWeight * scoreboardBias;                                // capture swing towards victory
+            score += metrics.DistanceFactor * DistanceWeight * distanceBias;                                    // shorter travel preferred when ahead
+            score += metrics.Safety * SafetyWeight * safetyBias;                                                // avoid lethal zones when leading
+            score += metrics.OpenArea * OpenAreaWeight * cautionBias;                                           // easier approach corridors
+            score += metrics.Centrality * CentralityWeight * centralityBias;                                    // central map leverage
+            score += metrics.TravelFactor * TravelWeight * timeBias * aggressionBias;                           // fast captures prioritized when behind
+            score += metrics.ArrivalAdvantage * EnemyArrivalWeight * aggressionBias;                            // beat enemies to the point
+            score += metrics.Orientation * OrientationWeight;                                                   // attack angles on enemies guarding the point
+            score += metrics.Approach * ApproachWeight;                                                         // require less turning/boosting effort
+
+            score -= metrics.Danger * DangerPenaltyWeight * cautionBias;                                        // punish risky pockets
+            score -= metrics.EnemyPressure * EnemyPressurePenalty * cautionBias;                                // avoid enemy swarms unless desperate
+            score -= metrics.InterceptThreat * EnemyInterceptPenalty * cautionBias;                             // respect interception lines
+
+            if (metrics.TravelTime < FastArrivalThreshold)
+                score += QuickCaptureBonus * aggressionBias;
+            else if (metrics.TravelTime > SlowArrivalThreshold)
+                score -= SlowArrivalPenalty * safetyBias;
+
+            if (float.IsInfinity(metrics.EnemyEta))
+            {
+                score += UncontestedBonus * scoreboardBias;                                                     // free capture opportunity
+            }
+            else
+            {
+                float contest = 1f - Mathf.Clamp01(metrics.EnemyEta / TravelTimeNormalization);
+                score += contest * ContestWeight * contestBias;                                                 // race enemy arrivals when close
+            }
+
+            score += metrics.CaptureSwing * EndgameSwingWeight * Mathf.Lerp(0.8f, 1.3f, endgameUrgency);        // late game: value decisive swing
+
+            return score;
+        }
+
+        // ────────────────────────────── Factor calculators ──────────────────────────────
         private float DistanceFactor(Vector2 origin, Vector2 target)
         {
             float distance = Vector2.Distance(origin, target);
             return 1f - Mathf.Clamp01(distance / DistanceNormalization);
         }
 
-        private float DangerFactor(GameData data, Vector2 position)
+        private float DangerFactor(SpaceShipView self, GameData data, Vector2 position)
         {
             if (data == null)
                 return 0f;
 
-            float accumulated = 0f;
-            int samples = 0;
+            float weightedDanger = 0f;
+            float totalWeight = 0f;
+            Vector2 origin = self != null ? self.Position : position;
 
             if (data.Mines != null)
             {
@@ -431,8 +336,9 @@ namespace Teams.ActarusControllerV2.pierre
                     if (factor <= 0f)
                         continue;
 
-                    accumulated += mine.IsActive ? factor : factor * 0.5f;
-                    samples++;
+                    float weight = MineDangerWeight * (mine.IsActive ? 1f : 0.6f);
+                    weightedDanger += factor * weight;
+                    totalWeight += weight;
                 }
             }
 
@@ -443,17 +349,18 @@ namespace Teams.ActarusControllerV2.pierre
                     if (asteroid == null)
                         continue;
 
-                    float distance = Vector2.Distance(position, asteroid.Position);
-                    float safetyRadius = asteroid.Radius + AsteroidBuffer;
-                    if (safetyRadius <= 0f)
+                    float safeRadius = asteroid.Radius + AsteroidBuffer;
+                    if (safeRadius <= 0f)
                         continue;
 
-                    float factor = 1f - Mathf.Clamp01((distance - asteroid.Radius) / safetyRadius);
+                    float distanceToPath = DistancePointToSegment(asteroid.Position, origin, position);
+                    float factor = 1f - Mathf.Clamp01((distanceToPath - asteroid.Radius) / Mathf.Max(safeRadius, 0.001f));
                     if (factor <= 0f)
                         continue;
 
-                    accumulated += factor * 0.8f;
-                    samples++;
+                    float weight = AsteroidDangerWeight;
+                    weightedDanger += factor * weight;
+                    totalWeight += weight;
                 }
             }
 
@@ -481,15 +388,59 @@ namespace Teams.ActarusControllerV2.pierre
                         continue;
 
                     float forwardDanger = Mathf.Clamp01(Vector2.Dot(direction, (position - start).normalized));
-                    accumulated += Mathf.Lerp(bulletInfluence * 0.5f, bulletInfluence, forwardDanger);
-                    samples++;
+                    float weight = ProjectileDangerWeight;
+                    weightedDanger += Mathf.Lerp(bulletInfluence * 0.5f, bulletInfluence, forwardDanger) * weight;
+                    totalWeight += weight;
                 }
             }
 
-            if (samples == 0)
+            if (data.SpaceShips != null)
+            {
+                foreach (SpaceShipView ship in data.SpaceShips)
+                {
+                    if (ship == null || ship.Owner == self.Owner)
+                        continue;
+
+                    float lane = EnemyFireLaneContribution(ship, position);
+                    if (lane <= 0f)
+                        continue;
+
+                    float weight = EnemyLaneDangerWeight * Mathf.Lerp(0.85f, 1.15f, Mathf.Clamp01(ship.Energy));
+                    weightedDanger += lane * weight;
+                    totalWeight += weight;
+                }
+            }
+
+            if (totalWeight <= Mathf.Epsilon)
                 return 0f;
 
-            return Mathf.Clamp01(accumulated / samples);
+            return Mathf.Clamp01(weightedDanger / totalWeight);
+        }
+
+        private float EnemyFireLaneContribution(SpaceShipView enemy, Vector2 position)
+        {
+            Vector2 toTarget = position - enemy.Position;
+            float distance = toTarget.magnitude;
+            if (distance <= Mathf.Epsilon || distance > EnemyFireLaneReach)
+                return 0f;
+
+            Vector2 direction = toTarget / distance;
+            Vector2 forward = enemy.LookAt.sqrMagnitude > Mathf.Epsilon ? enemy.LookAt.normalized : OrientationToVector(enemy.Orientation);
+
+            float alignment = Mathf.Clamp01(Vector2.Dot(forward, direction));
+            if (alignment <= 0f)
+                return 0f;
+
+            float distanceFactor = 1f - Mathf.Clamp01(distance / EnemyFireLaneReach);
+            float velocityFactor = enemy.Velocity.sqrMagnitude > 0.001f
+                ? Mathf.Clamp01((Vector2.Dot(enemy.Velocity.normalized, direction) + 1f) * 0.5f)
+                : 0.5f;
+
+            float lane = alignment * alignment * Mathf.Lerp(0.7f, 1.1f, velocityFactor) * distanceFactor;
+            if (enemy.HasShot)
+                lane += 0.1f * distanceFactor;
+
+            return Mathf.Clamp01(lane);
         }
 
         private float OpenAreaFactor(SpaceShipView self, GameData data, Vector2 targetPosition)
@@ -530,9 +481,23 @@ namespace Teams.ActarusControllerV2.pierre
                 return 0f;
 
             if (waypoint.Owner == -1)
-                return 0.5f;
+                return 0.55f;
 
             return 1f;
+        }
+
+        private float CaptureSwingFactor(SpaceShipView self, WayPointView waypoint)
+        {
+            if (self == null || waypoint == null)
+                return 0f;
+
+            if (waypoint.Owner == self.Owner)
+                return -0.35f;   // staying on owned points gives little value
+
+            if (waypoint.Owner == -1)
+                return 0.6f;     // neutral points still meaningful swing
+
+            return 1f;           // enemy owned points provide full swing
         }
 
         private float OrientationFactorRelativeToEnemy(SpaceShipView self, GameData data, WayPointView waypoint)
@@ -556,7 +521,7 @@ namespace Teams.ActarusControllerV2.pierre
             }
 
             if (closestEnemy == null || closestDistance <= 0.1f)
-                return 0.5f;
+                return 0.6f;
 
             Vector2 toWaypoint = (waypoint.Position - closestEnemy.Position).normalized;
             Vector2 enemyForward = OrientationToVector(closestEnemy.Orientation);
@@ -582,7 +547,80 @@ namespace Teams.ActarusControllerV2.pierre
             return alignment;
         }
 
-        private float EstimateTravelTime(SpaceShipView ship, GameData data, WayPointView waypoint, float danger, float openArea)
+        private float EnemyPressureField(GameData data, SpaceShipView self, Vector2 position)
+        {
+            if (data?.SpaceShips == null)
+                return 0f;
+
+            float pressure = 0f;
+            foreach (SpaceShipView ship in data.SpaceShips)
+            {
+                if (ship == null || ship.Owner == self.Owner)
+                    continue;
+
+                float distance = Vector2.Distance(position, ship.Position);
+                if (distance > EnemyPressureRadius)
+                    continue;
+
+                Vector2 toPosition = (position - ship.Position).normalized;
+                Vector2 forward = ship.LookAt.sqrMagnitude > Mathf.Epsilon ? ship.LookAt.normalized : OrientationToVector(ship.Orientation);
+                float facing = Mathf.Clamp01((Vector2.Dot(forward, toPosition) + 1f) * 0.5f);
+                float distFactor = 1f - Mathf.Clamp01(distance / EnemyPressureRadius);
+                pressure += Mathf.Lerp(distFactor * 0.7f, distFactor, facing);
+            }
+
+            return Mathf.Clamp01(pressure);
+        }
+
+        private float EnemyInterceptFactor(SpaceShipView self, GameData data, WayPointView waypoint)
+        {
+            if (self == null || data?.SpaceShips == null || waypoint == null)
+                return 0f;
+
+            float highestThreat = 0f;
+            Vector2 position = waypoint.Position;
+
+            foreach (SpaceShipView ship in data.SpaceShips)
+            {
+                if (ship == null || ship.Owner == self.Owner)
+                    continue;
+
+                Vector2 toWaypoint = position - ship.Position;
+                float distance = toWaypoint.magnitude;
+                if (distance <= Mathf.Epsilon)
+                    return 1f;
+
+                float distanceFactor = 1f - Mathf.Clamp01(distance / EnemyInterceptRadius);
+                if (distanceFactor <= 0f)
+                    continue;
+
+                Vector2 direction = toWaypoint / distance;
+                Vector2 forward = ship.LookAt.sqrMagnitude > Mathf.Epsilon ? ship.LookAt.normalized : OrientationToVector(ship.Orientation);
+                float facing = Mathf.Clamp01((Vector2.Dot(forward, direction) + 1f) * 0.5f);
+                float velocityAlignment = ship.Velocity.sqrMagnitude > 0.001f
+                    ? Mathf.Clamp01((Vector2.Dot(ship.Velocity.normalized, direction) + 1f) * 0.5f)
+                    : 0.5f;
+                float speedRatio = Mathf.Clamp01(ship.Velocity.magnitude / Mathf.Max(0.1f, ship.SpeedMax));
+
+                float threat = distanceFactor * Mathf.Lerp(facing, facing * 1.2f, speedRatio) * Mathf.Lerp(0.75f, 1.1f, velocityAlignment);
+                if (ship.HasShot)
+                    threat += 0.08f;
+                if (ship.HasDroppedMine)
+                    threat += 0.05f;
+
+                highestThreat = Mathf.Max(highestThreat, Mathf.Clamp01(threat));
+            }
+
+            return Mathf.Clamp01(highestThreat);
+        }
+
+        private float EstimateTravelTime(
+            SpaceShipView ship,
+            GameData data,
+            WayPointView waypoint,
+            float danger,
+            float openArea,
+            float enemyPressure)
         {
             if (ship == null || waypoint == null)
                 return float.PositiveInfinity;
@@ -596,29 +634,29 @@ namespace Teams.ActarusControllerV2.pierre
 
             Vector2 forward = ship.LookAt.sqrMagnitude > Mathf.Epsilon ? ship.LookAt.normalized : OrientationToVector(ship.Orientation);
             float alignment = Mathf.Clamp01((Vector2.Dot(forward, toTarget.normalized) + 1f) * 0.5f);
-            float orientationMultiplier = Mathf.Lerp(1.2f, 0.75f, alignment);
+            float orientationMultiplier = Mathf.Lerp(1.15f, 0.75f, alignment);
 
             float velocityProjection = Vector2.Dot(ship.Velocity, toTarget.normalized);
             float velocityBoost = Mathf.Clamp(velocityProjection, -ship.SpeedMax, ship.SpeedMax) / Mathf.Max(0.1f, ship.SpeedMax);
             float velocityMultiplier = Mathf.Lerp(0.9f, 1.1f, (velocityBoost + 1f) * 0.5f);
 
             float energy = Mathf.Clamp01(ship.Energy);
-            float energyMultiplier = Mathf.Lerp(0.75f, 1.15f, energy);
+            float energyMultiplier = Mathf.Lerp(0.75f, 1.1f, energy);
 
-            float hazardPenalty = 1f + danger * 0.35f + (1f - openArea) * 0.25f;
+            float hazardPenalty = 1f + danger * 0.4f + (1f - openArea) * 0.25f + enemyPressure * 0.3f;
             if (ship.HitPenaltyCountdown > 0f)
                 hazardPenalty += 0.3f;
             if (ship.StunPenaltyCountdown > 0f)
-                hazardPenalty += 0.5f;
+                hazardPenalty += 0.55f;
 
-            float effectiveSpeed = Mathf.Max(0.15f, ship.SpeedMax * orientationMultiplier * velocityMultiplier * energyMultiplier);
+            float effectiveSpeed = Mathf.Max(0.2f, ship.SpeedMax * orientationMultiplier * velocityMultiplier * energyMultiplier);
             float travelTime = distance / effectiveSpeed;
             travelTime *= hazardPenalty;
 
             return travelTime;
         }
 
-        private float PredictEnemyArrival(SpaceShipView self, GameData data, WayPointView waypoint, float danger, float openArea)
+        private float PredictEnemyArrival(SpaceShipView self, GameData data, WayPointView waypoint)
         {
             if (self == null || data?.SpaceShips == null || waypoint == null)
                 return float.PositiveInfinity;
@@ -629,7 +667,10 @@ namespace Teams.ActarusControllerV2.pierre
                 if (ship == null || ship.Owner == self.Owner)
                     continue;
 
-                float eta = EstimateTravelTime(ship, data, waypoint, danger, openArea);
+                float danger = DangerFactor(ship, data, waypoint.Position);
+                float openArea = OpenAreaFactor(ship, data, waypoint.Position);
+                float enemyPressure = EnemyPressureField(data, ship, waypoint.Position);
+                float eta = EstimateTravelTime(ship, data, waypoint, danger, openArea, enemyPressure);
                 if (eta < bestEta)
                     bestEta = eta;
             }
@@ -666,15 +707,6 @@ namespace Teams.ActarusControllerV2.pierre
             return -Mathf.Clamp01((-delta) / SlowArrivalThreshold);
         }
 
-        private void MarkVisited(WayPointView waypoint)
-        {
-            if (waypoint == null)
-                return;
-
-            if (_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
-                _lastVisited[metrics.Index] = Time.time;
-        }
-
         private float MemoryMultiplier(int waypointIndex, WayPointView waypoint)
         {
             if (waypoint != null && waypoint == _currentTarget)
@@ -693,31 +725,23 @@ namespace Teams.ActarusControllerV2.pierre
             return 1f;
         }
 
+        private float SmoothScore(int waypointIndex, float value)
+        {
+            if (_smoothedScores.TryGetValue(waypointIndex, out float previous))
+            {
+                float smoothed = Mathf.Lerp(previous, value, ScoreSmoothing);
+                _smoothedScores[waypointIndex] = smoothed;
+                return smoothed;
+            }
+
+            _smoothedScores[waypointIndex] = value;
+            return value;
+        }
+
         private float CentralityFactor(Vector2 position, Vector2 mapCenter)
         {
             float distance = Vector2.Distance(position, mapCenter);
             return 1f - Mathf.Clamp01(distance / CentralityNormalization);
-        }
-
-        private float EnemyPressure(GameData data, SpaceShipView self, Vector2 position)
-        {
-            if (data?.SpaceShips == null)
-                return 0f;
-
-            float pressure = 0f;
-            foreach (SpaceShipView ship in data.SpaceShips)
-            {
-                if (ship == null || ship.Owner == self.Owner)
-                    continue;
-
-                float distance = Vector2.Distance(position, ship.Position);
-                if (distance > EnemyPressureRadius)
-                    continue;
-
-                pressure += 1f - Mathf.Clamp01(distance / EnemyPressureRadius);
-            }
-
-            return Mathf.Clamp01(pressure);
         }
 
         private float ScoreDeficitFactor(SpaceShipView self, GameData data)
@@ -747,6 +771,18 @@ namespace Teams.ActarusControllerV2.pierre
             return normalized;
         }
 
+        private float EndgameUrgency(GameData data)
+        {
+            if (data == null)
+                return 0f;
+
+            float timeLeft = Mathf.Max(0f, data.timeLeft);
+            if (EndgameTimeHorizon <= Mathf.Epsilon)
+                return 0f;
+
+            return Mathf.Clamp01(1f - timeLeft / EndgameTimeHorizon);
+        }
+
         private Vector2 ComputeMapCenter(List<WayPointView> waypoints)
         {
             Vector2 sum = Vector2.zero;
@@ -762,66 +798,117 @@ namespace Teams.ActarusControllerV2.pierre
             return count > 0 ? sum / count : Vector2.zero;
         }
 
-        private List<List<WayPointView>> ClusterWaypoints(List<WayPointView> waypoints)
+        private void ApplyHysteresis(
+            Dictionary<WayPointView, float> scoredTargets,
+            WayPointView evaluatedBest,
+            float evaluatedScore,
+            float evaluatedEta)
         {
-            List<List<WayPointView>> clusters = new();
-            if (waypoints == null || waypoints.Count == 0)
-                return clusters;
+            WayPointView previousTarget = _currentTarget;
+            float previousScore = _currentTargetScore;
+            float now = Time.time;
 
-            bool[] visited = new bool[waypoints.Count];
-
-            for (int i = 0; i < waypoints.Count; i++)
+            if (previousTarget != null)
             {
-                if (visited[i])
-                    continue;
-
-                WayPointView origin = waypoints[i];
-                if (origin == null)
+                if (!_metricsCache.ContainsKey(previousTarget) || !scoredTargets.TryGetValue(previousTarget, out float storedScore))
                 {
-                    visited[i] = true;
-                    continue;
+                    previousTarget = null;
+                    previousScore = float.MinValue;
                 }
-
-                List<WayPointView> cluster = new();
-                Queue<int> frontier = new();
-                frontier.Enqueue(i);
-                visited[i] = true;
-
-                while (frontier.Count > 0)
+                else
                 {
-                    int index = frontier.Dequeue();
-                    WayPointView waypoint = waypoints[index];
-                    if (waypoint == null)
-                        continue;
-
-                    cluster.Add(waypoint);
-
-                    for (int j = 0; j < waypoints.Count; j++)
-                    {
-                        if (visited[j])
-                            continue;
-
-                        WayPointView candidate = waypoints[j];
-                        if (candidate == null)
-                        {
-                            visited[j] = true;
-                            continue;
-                        }
-
-                        float distance = Vector2.Distance(waypoint.Position, candidate.Position);
-                        if (distance <= ClusterDistanceThreshold)
-                        {
-                            visited[j] = true;
-                            frontier.Enqueue(j);
-                        }
-                    }
+                    previousScore = storedScore;
                 }
-
-                if (cluster.Count > 0)
-                    clusters.Add(cluster);
             }
 
-            return clusters;
+            WayPointView finalTarget = evaluatedBest;
+            float finalScore = evaluatedScore;
+            float finalEta = evaluatedEta;
+
+            if (previousTarget != null)
+            {
+                bool keepPrevious = false;
+                if (finalTarget == null)
+                {
+                    keepPrevious = true;
+                }
+                else if (finalTarget == previousTarget)
+                {
+                    keepPrevious = true;
+                    finalScore = previousScore;
+                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
+                        finalEta = prevMetrics.TravelTime;
+                }
+                else
+                {
+                    float improvement = finalScore - previousScore;
+                    float ratio = previousScore <= 0f ? improvement : improvement / Mathf.Max(Mathf.Abs(previousScore), 0.0001f);
+                    bool lockActive = now < _targetLockUntil;
+                    float improvementThreshold = lockActive ? TargetSwitchBias : TargetSwitchBias * 0.5f;
+                    float ratioThreshold = lockActive ? TargetSwitchRatioLocked : TargetSwitchRatioFree;
+
+                    float previousEta = float.PositiveInfinity;
+                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
+                        previousEta = prevMetrics.TravelTime;
+                    bool etaWin = finalEta + TargetEtaAdvantage < previousEta;
+
+                    if (improvement < improvementThreshold && !etaWin)
+                        keepPrevious = true;
+                    else if (ratio < ratioThreshold && !etaWin)
+                        keepPrevious = true;
+                    else if (now - _lastTargetUpdateTime < TargetHoldMin * 0.5f && !etaWin)
+                        keepPrevious = true;
+                }
+
+                if (keepPrevious)
+                {
+                    finalTarget = previousTarget;
+                    finalScore = previousScore;
+                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
+                        finalEta = prevMetrics.TravelTime;
+                }
+            }
+
+            _cachedBestWaypoint = finalTarget;
+            _cachedBestScore = finalScore;
+            _cachedBestEta = finalEta;
+
+            if (finalTarget != null)
+            {
+                bool targetChanged = finalTarget != previousTarget;
+                if (targetChanged && previousTarget != null)
+                    MarkVisited(previousTarget);
+
+                if (targetChanged)
+                {
+                    _currentTarget = finalTarget;
+                    _currentTargetScore = finalScore;
+                    _lastTargetUpdateTime = now;
+                    _targetLockUntil = now + Mathf.Lerp(TargetHoldMin, TargetHoldMax, Mathf.Clamp01(finalScore));
+                    if (_metricsCache.TryGetValue(finalTarget, out WaypointMetrics metrics))
+                        Debug.Log($"Selected target: WP#{metrics.Index} ETA={finalEta:F1}s Score={finalScore:F2}");
+                }
+                else
+                {
+                    _currentTargetScore = finalScore;
+                }
+            }
+            else if (previousTarget != null)
+            {
+                MarkVisited(previousTarget);
+                _currentTarget = null;
+                _currentTargetScore = float.MinValue;
+                _targetLockUntil = 0f;
+            }
+        }
+
+        private void MarkVisited(WayPointView waypoint)
+        {
+            if (waypoint == null)
+                return;
+
+            if (_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
+                _lastVisited[metrics.Index] = Time.time;
         }
 
         // ────────────────────────────── Math helpers ──────────────────────────────
