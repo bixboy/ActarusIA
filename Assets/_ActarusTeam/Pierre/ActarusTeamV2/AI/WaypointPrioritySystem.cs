@@ -49,6 +49,8 @@ namespace Teams.ActarusControllerV2.pierre
         private const float IndividualCentralityWeight = 0.15f;
 
         private const float MemoryPenaltyMultiplier = 0.6f;
+        private const float TargetPersistenceTime = 1.75f;
+        private const float TargetSwitchMargin = 0.2f;
 
         // Debug display
         private const float DebugSphereSize = 0.3f;
@@ -63,6 +65,9 @@ namespace Teams.ActarusControllerV2.pierre
         private WayPointView _cachedBestWaypoint;
         private float _cachedBestScore;
         private float _cachedBestEta;
+        private WayPointView _currentTarget;
+        private float _currentTargetScore = float.MinValue;
+        private float _lastTargetUpdateTime;
         private float _nextEvaluationTime;
 
         private struct WaypointMetrics
@@ -78,6 +83,96 @@ namespace Teams.ActarusControllerV2.pierre
             public float TravelFactor;
             public float EnemyEta;
             public float ArrivalAdvantage; // [-1,1] positive when we beat enemies
+        }
+
+        /// <summary>
+        /// Keeps the current objective unless a rival waypoint is significantly better for long enough.
+        /// Prevents oscillations by applying score hysteresis and a short lock duration to the active target.
+        /// </summary>
+        private void ApplyHysteresis(
+            Dictionary<WayPointView, float> combinedScores,
+            WayPointView evaluatedBest,
+            float evaluatedScore,
+            float evaluatedEta)
+        {
+            WayPointView previousTarget = _currentTarget;
+            float previousScore = _currentTargetScore;
+
+            WayPointView finalTarget = evaluatedBest;
+            float finalScore = evaluatedScore;
+            float finalEta = evaluatedEta;
+
+            if (previousTarget != null)
+            {
+                float previousCombinedScore = previousScore;
+                if (combinedScores != null && combinedScores.TryGetValue(previousTarget, out float storedScore))
+                    previousCombinedScore = storedScore;
+
+                bool keepPrevious = false;
+
+                if (finalTarget == null)
+                {
+                    keepPrevious = _metricsCache.ContainsKey(previousTarget);
+                }
+                else if (finalTarget == previousTarget)
+                {
+                    keepPrevious = true;
+                    finalScore = previousCombinedScore;
+                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
+                        finalEta = prevMetrics.TravelTime;
+                }
+                else
+                {
+                    float scoreGap = finalScore - previousCombinedScore;
+                    float timeHeld = Time.time - _lastTargetUpdateTime;
+                    if (scoreGap < TargetSwitchMargin && timeHeld < TargetPersistenceTime)
+                    {
+                        keepPrevious = _metricsCache.ContainsKey(previousTarget);
+                    }
+                }
+
+                if (keepPrevious)
+                {
+                    finalTarget = previousTarget;
+                    finalScore = combinedScores != null && combinedScores.TryGetValue(previousTarget, out float prevScore)
+                        ? prevScore
+                        : previousScore;
+                    finalEta = _cachedBestEta;
+
+                    if (_metricsCache.TryGetValue(previousTarget, out WaypointMetrics prevMetrics))
+                        finalEta = prevMetrics.TravelTime;
+                }
+            }
+
+            _cachedBestWaypoint = finalTarget;
+            _cachedBestScore = finalScore;
+            _cachedBestEta = finalEta;
+
+            if (finalTarget != null)
+            {
+                bool targetChanged = finalTarget != previousTarget;
+                if (targetChanged && previousTarget != null)
+                    MarkVisited(previousTarget);
+
+                if (targetChanged)
+                {
+                    _currentTarget = finalTarget;
+                    _currentTargetScore = finalScore;
+                    _lastTargetUpdateTime = Time.time;
+                    if (_metricsCache.TryGetValue(finalTarget, out WaypointMetrics metrics))
+                        Debug.Log($"Selected target: WP#{metrics.Index} ETA={_cachedBestEta:F1}s Score={_cachedBestScore:F2}");
+                }
+                else
+                {
+                    _currentTargetScore = finalScore;
+                }
+            }
+            else if (previousTarget != null)
+            {
+                MarkVisited(previousTarget);
+                _currentTarget = null;
+                _currentTargetScore = float.MinValue;
+            }
         }
 
         // ────────────────────────────── Public API ──────────────────────────────
@@ -99,10 +194,11 @@ namespace Teams.ActarusControllerV2.pierre
             float aggressionBias = Mathf.Lerp(0.8f, 1.3f, deficitFactor);
 
             List<List<WayPointView>> groups = ClusterWaypoints(data.WayPoints);
+            Dictionary<WayPointView, float> combinedScores = new();
 
-            _cachedBestWaypoint = null;
-            _cachedBestScore = float.MinValue;
-            _cachedBestEta = float.PositiveInfinity;
+            WayPointView bestEvaluated = null;
+            float bestEvaluatedScore = float.MinValue;
+            float bestEvaluatedEta = float.PositiveInfinity;
 
             foreach (List<WayPointView> group in groups)
             {
@@ -110,27 +206,23 @@ namespace Teams.ActarusControllerV2.pierre
                     continue;
 
                 float groupScore = ComputeGroupScore(self, data, group, aggressionBias, deficitFactor);
-                WayPointView candidate = SelectBestInGroup(self, data, group, aggressionBias, deficitFactor, out float candidateScore, out float eta);
+                WayPointView candidate = SelectBestInGroup(self, data, group, aggressionBias, deficitFactor, groupScore, combinedScores, out float candidateScore, out float eta);
                 if (candidate == null)
                     continue;
 
                 float combinedScore = groupScore + candidateScore;
-                if (combinedScore <= _cachedBestScore)
+
+                if (combinedScore <= bestEvaluatedScore)
                     continue;
 
-                _cachedBestScore = combinedScore;
-                _cachedBestWaypoint = candidate;
-                _cachedBestEta = eta;
+                bestEvaluatedScore = combinedScore;
+                bestEvaluated = candidate;
+                bestEvaluatedEta = eta;
             }
+
+            ApplyHysteresis(combinedScores, bestEvaluated, bestEvaluatedScore, bestEvaluatedEta);
 
             _nextEvaluationTime = Time.time + EvaluationInterval;
-
-            if (_cachedBestWaypoint != null)
-            {
-                int waypointIndex = _metricsCache[_cachedBestWaypoint].Index;
-                _lastVisited[waypointIndex] = Time.time;
-                Debug.Log($"Selected target: WP#{waypointIndex} ETA={_cachedBestEta:F1}s Score={_cachedBestScore:F2}");
-            }
 
             DrawDebug(self, _cachedBestWaypoint, _cachedBestEta, _cachedBestScore);
             return _cachedBestWaypoint;
@@ -261,6 +353,8 @@ namespace Teams.ActarusControllerV2.pierre
             List<WayPointView> group,
             float aggressionBias,
             float deficitFactor,
+            float groupScore,
+            Dictionary<WayPointView, float> combinedScores,
             out float bestScore,
             out float eta)
         {
@@ -289,8 +383,11 @@ namespace Teams.ActarusControllerV2.pierre
                 score += metrics.ArrivalAdvantage * IndividualEnemyArrivalWeight * Mathf.Lerp(0.85f, 1.2f, deficitFactor); // beat enemies to point
                 score += metrics.Centrality * IndividualCentralityWeight * Mathf.Lerp(0.9f, 1.1f, deficitFactor);          // reinforce central map presence
 
-                float memoryMultiplier = MemoryMultiplier(metrics.Index);
+                float memoryMultiplier = MemoryMultiplier(metrics.Index, waypoint);
                 score *= memoryMultiplier;
+
+                float combinedScore = groupScore + score;
+                combinedScores[waypoint] = combinedScore;
 
                 if (score > bestScore)
                 {
@@ -569,8 +666,20 @@ namespace Teams.ActarusControllerV2.pierre
             return -Mathf.Clamp01((-delta) / SlowArrivalThreshold);
         }
 
-        private float MemoryMultiplier(int waypointIndex)
+        private void MarkVisited(WayPointView waypoint)
         {
+            if (waypoint == null)
+                return;
+
+            if (_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
+                _lastVisited[metrics.Index] = Time.time;
+        }
+
+        private float MemoryMultiplier(int waypointIndex, WayPointView waypoint)
+        {
+            if (waypoint != null && waypoint == _currentTarget)
+                return 1f;
+
             if (_lastVisited.TryGetValue(waypointIndex, out float lastTime))
             {
                 float elapsed = Time.time - lastTime;
