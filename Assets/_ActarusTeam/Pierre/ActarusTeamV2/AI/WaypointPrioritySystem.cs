@@ -5,112 +5,673 @@ using DoNotModify;
 namespace Teams.ActarusControllerV2.pierre
 {
     /// <summary>
-    /// Strategic selector that evaluates waypoint clusters and picks the best capture target.
+    /// Strategic selector that evaluates capture waypoints and returns the most valuable target.
+    /// Tailored for a duel situation (one player ship versus enemy ships).
     /// </summary>
     public sealed class WaypointPrioritySystem
     {
+        // ────────────────────────────── Tunable constants ──────────────────────────────
+        private const float EvaluationInterval = 0.25f;
         private const float ClusterDistanceThreshold = 3.5f;
-        private const float DistanceNormalization = 12f;
-        private const float HazardReach = 6f;
-        private const float AsteroidBuffer = 0.75f;
-        private const float ProjectileDangerReach = 5f;
-        private const float SpreadNormalization = 6f;
-        private const float TravelTimeNormalization = 6f;
 
-        // Group score weights (tweakable)
-        private const float EnemyWeight = 0.7f;
-        private const float NeutralWeight = 0.45f;
-        private const float DistanceWeight = 0.55f;
-        private const float DangerWeight = 0.55f;
-        private const float AccessibilityWeight = 0.35f;
-        private const float AllyPresenceWeight = 0.25f;
-        private const float AllyControlledPenaltyWeight = 0.6f;
-        private const float EnemyPressurePenaltyWeight = 0.35f;
-        private const float ProjectileDangerWeight = 0.45f;
-        private const float SpreadPenaltyWeight = 0.3f;
-        private const float ReadinessWeight = 0.25f;
-        private const float ScoreUrgencyWeight = 0.3f;
-        private const float TimeUrgencyWeight = 0.2f;
+        private const float DistanceNormalization = 14f;
+        private const float TravelTimeNormalization = 7.5f;
+        private const float FastArrivalThreshold = 3f;
+        private const float SlowArrivalThreshold = 10f;
+        private const float CentralityNormalization = 12f;
+        private const float MemoryCooldown = 8f;
 
-        // Individual waypoint weights (tweakable)
-        private const float IndividualDistanceWeight = 0.3f;
-        private const float IndividualControlWeight = 0.42f;
-        private const float IndividualSafetyWeight = 0.15f;
-        private const float IndividualOrientationWeight = 0.08f;
-        private const float IndividualApproachWeight = 0.08f;
-        private const float IndividualTravelWeight = 0.12f;
-        private const float IndividualProjectilePenaltyWeight = 0.12f;
-        private const float IndividualOwnedWaypointPenaltyWeight = 0.35f;
+        private const float MineDangerReach = 4f;
+        private const float AsteroidBuffer = 1.25f;
+        private const float ProjectileAvoidanceRadius = 1.4f;
+        private const float DangerPredictionHorizon = 2.75f;
+        private const float EnemyPressureRadius = 8f;
 
-        // Debug
+        // Group weights
+        private const float GroupEnemyControlWeight = 0.85f;
+        private const float GroupNeutralControlWeight = 0.55f;
+        private const float GroupDistanceWeight = 0.55f;
+        private const float GroupDangerWeight = 0.65f;
+        private const float GroupOpenAreaWeight = 0.35f;
+        private const float GroupEnemyArrivalWeight = 0.6f;
+        private const float GroupCentralityWeight = 0.25f;
+        private const float GroupEnemyPressurePenalty = 0.4f;
+
+        // Individual weights
+        private const float IndividualControlWeight = 0.6f;
+        private const float IndividualDistanceWeight = 0.32f;
+        private const float IndividualSafetyWeight = 0.28f;
+        private const float IndividualOpenAreaWeight = 0.18f;
+        private const float IndividualOrientationWeight = 0.12f;
+        private const float IndividualApproachWeight = 0.1f;
+        private const float IndividualTravelWeight = 0.35f;
+        private const float IndividualEnemyArrivalWeight = 0.42f;
+        private const float IndividualCentralityWeight = 0.15f;
+
+        private const float MemoryPenaltyMultiplier = 0.6f;
+
+        // Debug display
+        private const float DebugSphereSize = 0.3f;
         private const float DebugTextSize = 0.8f;
-        private const float DebugSphereSize = 0.25f;
-        private static readonly Color DebugBestClusterColor = Color.yellow;
-        private static readonly Color DebugBestWaypointColor = Color.green;
-        private static readonly Color DebugClusterLinkColor = new Color(1f, 1f, 1f, 0.25f);
+        private static readonly Color DebugLineColor = new Color(0.2f, 0.9f, 0.2f, 0.8f);
+        private static readonly Color DebugSphereColor = new Color(0.4f, 1f, 0.4f, 0.8f);
 
-        private List<List<WayPointView>> _lastClusters = new();
-        private List<(Vector2 pos, float score)> _lastGroupScores = new();
-        private WayPointView _lastBestWaypoint;
+        // ────────────────────────────── Runtime caches ──────────────────────────────
+        private readonly Dictionary<int, float> _lastVisited = new();
+        private readonly Dictionary<WayPointView, WaypointMetrics> _metricsCache = new();
 
-        // ──────────── Public entry ────────────
+        private WayPointView _cachedBestWaypoint;
+        private float _cachedBestScore;
+        private float _cachedBestEta;
+        private float _nextEvaluationTime;
+
+        private struct WaypointMetrics
+        {
+            public WayPointView Waypoint;
+            public int Index;
+            public Vector2 Position;
+            public float DistanceFactor;
+            public float Danger;
+            public float OpenArea;
+            public float Centrality;
+            public float TravelTime;
+            public float TravelFactor;
+            public float EnemyEta;
+            public float ArrivalAdvantage; // [-1,1] positive when we beat enemies
+        }
+
+        // ────────────────────────────── Public API ──────────────────────────────
         public WayPointView SelectBestWaypoint(SpaceShipView self, GameData data)
         {
-            if (self == null || data == null)
+            if (self == null || data?.WayPoints == null || data.WayPoints.Count == 0)
                 return null;
 
-            _lastClusters.Clear();
-            _lastGroupScores.Clear();
-            _lastBestWaypoint = null;
+            // Rate-limit the heavy evaluation.
+            if (Time.time < _nextEvaluationTime && _cachedBestWaypoint != null)
+            {
+                DrawDebug(self, _cachedBestWaypoint, _cachedBestEta, _cachedBestScore);
+                return _cachedBestWaypoint;
+            }
 
-            List<List<WayPointView>> groups = ClusterWaypoints(data);
-            _lastClusters = groups;
+            RebuildMetrics(self, data);
 
-            List<WayPointView> bestGroup = null;
-            float bestGroupScore = float.MinValue;
+            float deficitFactor = ScoreDeficitFactor(self, data); // 0 (ahead) → 1 (behind)
+            float aggressionBias = Mathf.Lerp(0.8f, 1.3f, deficitFactor);
+
+            List<List<WayPointView>> groups = ClusterWaypoints(data.WayPoints);
+
+            _cachedBestWaypoint = null;
+            _cachedBestScore = float.MinValue;
+            _cachedBestEta = float.PositiveInfinity;
 
             foreach (List<WayPointView> group in groups)
             {
-                float score = ComputeGroupScore(self, data, group);
-                if (score > bestGroupScore)
-                {
-                    bestGroupScore = score;
-                    bestGroup = group;
-                }
+                if (group == null || group.Count == 0)
+                    continue;
 
-                // Debug store centroid & score
-                Vector2 centroid = ComputeCentroid(group);
-                _lastGroupScores.Add((centroid, score));
+                float groupScore = ComputeGroupScore(self, data, group, aggressionBias, deficitFactor);
+                WayPointView candidate = SelectBestInGroup(self, data, group, aggressionBias, deficitFactor, out float candidateScore, out float eta);
+                if (candidate == null)
+                    continue;
+
+                float combinedScore = groupScore + candidateScore;
+                if (combinedScore <= _cachedBestScore)
+                    continue;
+
+                _cachedBestScore = combinedScore;
+                _cachedBestWaypoint = candidate;
+                _cachedBestEta = eta;
             }
 
-            if (bestGroup == null || bestGroup.Count == 0)
-                return null;
+            _nextEvaluationTime = Time.time + EvaluationInterval;
 
-            WayPointView best = SelectBestInGroup(self, data, bestGroup);
-            _lastBestWaypoint = best;
+            if (_cachedBestWaypoint != null)
+            {
+                int waypointIndex = _metricsCache[_cachedBestWaypoint].Index;
+                _lastVisited[waypointIndex] = Time.time;
+                Debug.Log($"Selected target: WP#{waypointIndex} ETA={_cachedBestEta:F1}s Score={_cachedBestScore:F2}");
+            }
 
-            // Debug draw call
-            DrawDebug(self, bestGroup, best);
-
-            return best;
+            DrawDebug(self, _cachedBestWaypoint, _cachedBestEta, _cachedBestScore);
+            return _cachedBestWaypoint;
         }
 
+        // ────────────────────────────── Core evaluation ──────────────────────────────
+        private void RebuildMetrics(SpaceShipView self, GameData data)
+        {
+            _metricsCache.Clear();
 
-        // ──────────── Grouping ────────────
-        private List<List<WayPointView>> ClusterWaypoints(GameData data)
+            if (self == null || data?.WayPoints == null)
+                return;
+
+            Vector2 mapCenter = ComputeMapCenter(data.WayPoints);
+
+            for (int i = 0; i < data.WayPoints.Count; i++)
+            {
+                WayPointView waypoint = data.WayPoints[i];
+                if (waypoint == null)
+                    continue;
+
+                Vector2 position = waypoint.Position;
+
+                float danger = DangerFactor(data, position);
+                float openArea = OpenAreaFactor(self, data, position);
+                float distanceFactor = DistanceFactor(self.Position, position);
+                float centrality = CentralityFactor(position, mapCenter);
+                float travelTime = EstimateTravelTime(self, data, waypoint, danger, openArea);
+                float travelFactor = ComputeTravelFactor(travelTime);
+                float enemyEta = PredictEnemyArrival(self, data, waypoint, danger, openArea);
+                float arrivalAdvantage = ComputeArrivalAdvantage(travelTime, enemyEta);
+
+                _metricsCache[waypoint] = new WaypointMetrics
+                {
+                    Waypoint = waypoint,
+                    Index = i,
+                    Position = position,
+                    DistanceFactor = distanceFactor,
+                    Danger = danger,
+                    OpenArea = openArea,
+                    Centrality = centrality,
+                    TravelTime = travelTime,
+                    TravelFactor = travelFactor,
+                    EnemyEta = enemyEta,
+                    ArrivalAdvantage = arrivalAdvantage
+                };
+            }
+        }
+
+        private float ComputeGroupScore(
+            SpaceShipView self,
+            GameData data,
+            List<WayPointView> group,
+            float aggressionBias,
+            float deficitFactor)
+        {
+            int enemyOwned = 0;
+            int neutral = 0;
+            int selfOwned = 0;
+            float distanceSum = 0f;
+            float dangerSum = 0f;
+            float openAreaSum = 0f;
+            float centralitySum = 0f;
+            float bestArrivalAdvantage = float.NegativeInfinity;
+            float bestTravel = float.PositiveInfinity;
+            Vector2 centroid = Vector2.zero;
+
+            foreach (WayPointView waypoint in group)
+            {
+                if (waypoint == null || !_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
+                    continue;
+
+                if (waypoint.Owner == self.Owner) selfOwned++;
+                else if (waypoint.Owner == -1) neutral++;
+                else enemyOwned++;
+
+                distanceSum += metrics.DistanceFactor;
+                dangerSum += metrics.Danger;
+                openAreaSum += metrics.OpenArea;
+                centralitySum += metrics.Centrality;
+                bestArrivalAdvantage = Mathf.Max(bestArrivalAdvantage, metrics.ArrivalAdvantage);
+                bestTravel = Mathf.Min(bestTravel, metrics.TravelTime);
+                centroid += metrics.Position;
+            }
+
+            int count = group.Count;
+            if (count == 0)
+                return float.MinValue;
+
+            centroid /= count;
+
+            float avgDistance = distanceSum / count;
+            float avgDanger = dangerSum / count;
+            float avgOpen = openAreaSum / count;
+            float avgCentrality = centralitySum / count;
+
+            float enemyRatio = count > 0 ? (float)enemyOwned / count : 0f;
+            float neutralRatio = count > 0 ? (float)neutral / count : 0f;
+            float selfRatio = count > 0 ? (float)selfOwned / count : 0f;
+
+            float enemyPressure = EnemyPressure(data, self, centroid);
+
+            float score = 0f;
+            score += enemyRatio * GroupEnemyControlWeight * Mathf.Lerp(0.9f, 1.25f, deficitFactor); // more enemy focus when behind
+            score += neutralRatio * GroupNeutralControlWeight * Mathf.Lerp(1.2f, 0.85f, deficitFactor); // secure neutrals when ahead
+            score += avgDistance * GroupDistanceWeight * Mathf.Lerp(1.2f, 0.85f, deficitFactor);      // stick to nearby points when leading
+            score += avgOpen * GroupOpenAreaWeight * Mathf.Lerp(1.15f, 0.85f, deficitFactor);         // safer lanes when calm
+            score += avgCentrality * GroupCentralityWeight * Mathf.Lerp(0.9f, 1.1f, deficitFactor);    // center control in comeback
+            score += Mathf.Clamp(bestArrivalAdvantage, -1f, 1f) * GroupEnemyArrivalWeight * aggressionBias;
+
+            score -= avgDanger * GroupDangerWeight * Mathf.Lerp(1.25f, 0.7f, deficitFactor);           // very cautious when leading
+            score -= enemyPressure * GroupEnemyPressurePenalty * Mathf.Lerp(1.1f, 0.65f, deficitFactor);
+            score -= selfRatio * Mathf.Lerp(0.6f, 0.2f, deficitFactor);                                // abandon owned points when possible
+
+            // Slight preference to groups we can reach quickly
+            if (!float.IsInfinity(bestTravel))
+            {
+                float travelFactor = 1f - Mathf.Clamp01(bestTravel / TravelTimeNormalization);
+                score += travelFactor * Mathf.Lerp(0.35f, 0.55f, deficitFactor);
+            }
+
+            return score;
+        }
+
+        private WayPointView SelectBestInGroup(
+            SpaceShipView self,
+            GameData data,
+            List<WayPointView> group,
+            float aggressionBias,
+            float deficitFactor,
+            out float bestScore,
+            out float eta)
+        {
+            bestScore = float.MinValue;
+            eta = float.PositiveInfinity;
+            WayPointView bestWaypoint = null;
+
+            foreach (WayPointView waypoint in group)
+            {
+                if (waypoint == null || !_metricsCache.TryGetValue(waypoint, out WaypointMetrics metrics))
+                    continue;
+
+                float control = ControlFactor(self, waypoint);
+                float safety = 1f - metrics.Danger;
+                float orientation = OrientationFactorRelativeToEnemy(self, data, waypoint);
+                float approach = ApproachAlignmentFactor(self, waypoint);
+
+                float score = 0f;
+                score += control * IndividualControlWeight * aggressionBias;                                              // enemy > neutral > owned
+                score += metrics.DistanceFactor * IndividualDistanceWeight * Mathf.Lerp(1.2f, 0.9f, deficitFactor);        // prioritize nearby when leading
+                score += safety * IndividualSafetyWeight * Mathf.Lerp(1.35f, 0.8f, deficitFactor);                         // avoid risk when in front
+                score += metrics.OpenArea * IndividualOpenAreaWeight * Mathf.Lerp(1.2f, 0.85f, deficitFactor);              // prefer clean lanes when calm
+                score += orientation * IndividualOrientationWeight;                                                    // attack enemies from blind spots
+                score += approach * IndividualApproachWeight;                                                          // less steering corrections
+                score += metrics.TravelFactor * IndividualTravelWeight * Mathf.Lerp(0.9f, 1.25f, deficitFactor);          // push for fast captures when behind
+                score += metrics.ArrivalAdvantage * IndividualEnemyArrivalWeight * Mathf.Lerp(0.85f, 1.2f, deficitFactor); // beat enemies to point
+                score += metrics.Centrality * IndividualCentralityWeight * Mathf.Lerp(0.9f, 1.1f, deficitFactor);          // reinforce central map presence
+
+                float memoryMultiplier = MemoryMultiplier(metrics.Index);
+                score *= memoryMultiplier;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestWaypoint = waypoint;
+                    eta = metrics.TravelTime;
+                }
+            }
+
+            return bestWaypoint;
+        }
+
+        // ────────────────────────────── Scoring helpers ──────────────────────────────
+        private float DistanceFactor(Vector2 origin, Vector2 target)
+        {
+            float distance = Vector2.Distance(origin, target);
+            return 1f - Mathf.Clamp01(distance / DistanceNormalization);
+        }
+
+        private float DangerFactor(GameData data, Vector2 position)
+        {
+            if (data == null)
+                return 0f;
+
+            float accumulated = 0f;
+            int samples = 0;
+
+            if (data.Mines != null)
+            {
+                foreach (MineView mine in data.Mines)
+                {
+                    if (mine == null)
+                        continue;
+
+                    float distance = Vector2.Distance(position, mine.Position);
+                    float radius = mine.ExplosionRadius + MineDangerReach;
+                    if (radius <= 0f)
+                        continue;
+
+                    float factor = 1f - Mathf.Clamp01(distance / radius);
+                    if (factor <= 0f)
+                        continue;
+
+                    accumulated += mine.IsActive ? factor : factor * 0.5f;
+                    samples++;
+                }
+            }
+
+            if (data.Asteroids != null)
+            {
+                foreach (AsteroidView asteroid in data.Asteroids)
+                {
+                    if (asteroid == null)
+                        continue;
+
+                    float distance = Vector2.Distance(position, asteroid.Position);
+                    float safetyRadius = asteroid.Radius + AsteroidBuffer;
+                    if (safetyRadius <= 0f)
+                        continue;
+
+                    float factor = 1f - Mathf.Clamp01((distance - asteroid.Radius) / safetyRadius);
+                    if (factor <= 0f)
+                        continue;
+
+                    accumulated += factor * 0.8f;
+                    samples++;
+                }
+            }
+
+            if (data.Bullets != null)
+            {
+                foreach (BulletView bullet in data.Bullets)
+                {
+                    if (bullet == null)
+                        continue;
+
+                    Vector2 start = bullet.Position;
+                    Vector2 velocity = bullet.Velocity;
+                    float speed = velocity.magnitude;
+                    if (speed <= 0.01f)
+                    {
+                        velocity = velocity == Vector2.zero ? new Vector2(1f, 0f) : velocity;
+                        speed = BulletView.Speed;
+                    }
+
+                    Vector2 direction = velocity.normalized;
+                    Vector2 end = start + direction * speed * DangerPredictionHorizon;
+                    float distanceToPath = DistancePointToSegment(position, start, end);
+                    float bulletInfluence = 1f - Mathf.Clamp01(distanceToPath / ProjectileAvoidanceRadius);
+                    if (bulletInfluence <= 0f)
+                        continue;
+
+                    float forwardDanger = Mathf.Clamp01(Vector2.Dot(direction, (position - start).normalized));
+                    accumulated += Mathf.Lerp(bulletInfluence * 0.5f, bulletInfluence, forwardDanger);
+                    samples++;
+                }
+            }
+
+            if (samples == 0)
+                return 0f;
+
+            return Mathf.Clamp01(accumulated / samples);
+        }
+
+        private float OpenAreaFactor(SpaceShipView self, GameData data, Vector2 targetPosition)
+        {
+            if (self == null)
+                return 0f;
+
+            if (data?.Asteroids == null || data.Asteroids.Count == 0)
+                return 1f;
+
+            Vector2 origin = self.Position;
+            float maxObstruction = 0f;
+
+            foreach (AsteroidView asteroid in data.Asteroids)
+            {
+                if (asteroid == null)
+                    continue;
+
+                float distanceToPath = DistancePointToSegment(asteroid.Position, origin, targetPosition);
+                float safeRadius = asteroid.Radius + AsteroidBuffer;
+                if (safeRadius <= 0f)
+                    continue;
+
+                float obstruction = 1f - Mathf.Clamp01((distanceToPath - asteroid.Radius) / safeRadius);
+                if (obstruction > maxObstruction)
+                    maxObstruction = obstruction;
+            }
+
+            return 1f - maxObstruction;
+        }
+
+        private float ControlFactor(SpaceShipView self, WayPointView waypoint)
+        {
+            if (self == null || waypoint == null)
+                return 0f;
+
+            if (waypoint.Owner == self.Owner)
+                return 0f;
+
+            if (waypoint.Owner == -1)
+                return 0.5f;
+
+            return 1f;
+        }
+
+        private float OrientationFactorRelativeToEnemy(SpaceShipView self, GameData data, WayPointView waypoint)
+        {
+            if (self == null || data?.SpaceShips == null || waypoint == null)
+                return 0.5f;
+
+            SpaceShipView closestEnemy = null;
+            float closestDistance = float.MaxValue;
+            foreach (SpaceShipView ship in data.SpaceShips)
+            {
+                if (ship == null || ship.Owner == self.Owner)
+                    continue;
+
+                float distance = Vector2.Distance(waypoint.Position, ship.Position);
+                if (distance < closestDistance)
+                {
+                    closestDistance = distance;
+                    closestEnemy = ship;
+                }
+            }
+
+            if (closestEnemy == null || closestDistance <= 0.1f)
+                return 0.5f;
+
+            Vector2 toWaypoint = (waypoint.Position - closestEnemy.Position).normalized;
+            Vector2 enemyForward = OrientationToVector(closestEnemy.Orientation);
+            float dot = Vector2.Dot(enemyForward, toWaypoint);
+            return Mathf.Clamp01(0.5f * (1f - dot));
+        }
+
+        private float ApproachAlignmentFactor(SpaceShipView self, WayPointView waypoint)
+        {
+            if (self == null || waypoint == null)
+                return 0.5f;
+
+            Vector2 desiredDirection = waypoint.Position - self.Position;
+            if (desiredDirection.sqrMagnitude < Mathf.Epsilon)
+                return 1f;
+
+            desiredDirection.Normalize();
+            Vector2 currentDirection = self.Velocity.sqrMagnitude > 0.01f
+                ? self.Velocity.normalized
+                : (self.LookAt.sqrMagnitude > Mathf.Epsilon ? self.LookAt.normalized : desiredDirection);
+
+            float alignment = Mathf.Clamp01((Vector2.Dot(currentDirection, desiredDirection) + 1f) * 0.5f);
+            return alignment;
+        }
+
+        private float EstimateTravelTime(SpaceShipView ship, GameData data, WayPointView waypoint, float danger, float openArea)
+        {
+            if (ship == null || waypoint == null)
+                return float.PositiveInfinity;
+
+            _ = data; // reserved for future path sampling adjustments
+
+            Vector2 toTarget = waypoint.Position - ship.Position;
+            float distance = toTarget.magnitude;
+            if (distance <= 0.05f)
+                return 0f;
+
+            Vector2 forward = ship.LookAt.sqrMagnitude > Mathf.Epsilon ? ship.LookAt.normalized : OrientationToVector(ship.Orientation);
+            float alignment = Mathf.Clamp01((Vector2.Dot(forward, toTarget.normalized) + 1f) * 0.5f);
+            float orientationMultiplier = Mathf.Lerp(1.2f, 0.75f, alignment);
+
+            float velocityProjection = Vector2.Dot(ship.Velocity, toTarget.normalized);
+            float velocityBoost = Mathf.Clamp(velocityProjection, -ship.SpeedMax, ship.SpeedMax) / Mathf.Max(0.1f, ship.SpeedMax);
+            float velocityMultiplier = Mathf.Lerp(0.9f, 1.1f, (velocityBoost + 1f) * 0.5f);
+
+            float energy = Mathf.Clamp01(ship.Energy);
+            float energyMultiplier = Mathf.Lerp(0.75f, 1.15f, energy);
+
+            float hazardPenalty = 1f + danger * 0.35f + (1f - openArea) * 0.25f;
+            if (ship.HitPenaltyCountdown > 0f)
+                hazardPenalty += 0.3f;
+            if (ship.StunPenaltyCountdown > 0f)
+                hazardPenalty += 0.5f;
+
+            float effectiveSpeed = Mathf.Max(0.15f, ship.SpeedMax * orientationMultiplier * velocityMultiplier * energyMultiplier);
+            float travelTime = distance / effectiveSpeed;
+            travelTime *= hazardPenalty;
+
+            return travelTime;
+        }
+
+        private float PredictEnemyArrival(SpaceShipView self, GameData data, WayPointView waypoint, float danger, float openArea)
+        {
+            if (self == null || data?.SpaceShips == null || waypoint == null)
+                return float.PositiveInfinity;
+
+            float bestEta = float.PositiveInfinity;
+            foreach (SpaceShipView ship in data.SpaceShips)
+            {
+                if (ship == null || ship.Owner == self.Owner)
+                    continue;
+
+                float eta = EstimateTravelTime(ship, data, waypoint, danger, openArea);
+                if (eta < bestEta)
+                    bestEta = eta;
+            }
+
+            return bestEta;
+        }
+
+        private float ComputeTravelFactor(float travelTime)
+        {
+            if (float.IsInfinity(travelTime))
+                return -1f;
+
+            float travelFactor = 1f - Mathf.Clamp01(travelTime / TravelTimeNormalization);
+            if (travelTime < FastArrivalThreshold)
+                travelFactor += 0.15f;
+            else if (travelTime > SlowArrivalThreshold)
+                travelFactor -= 0.2f;
+
+            return Mathf.Clamp(travelFactor, -1f, 1f);
+        }
+
+        private float ComputeArrivalAdvantage(float selfTime, float enemyEta)
+        {
+            if (float.IsInfinity(selfTime))
+                return -1f;
+
+            if (float.IsInfinity(enemyEta))
+                return Mathf.Clamp01((SlowArrivalThreshold - selfTime) / SlowArrivalThreshold);
+
+            float delta = enemyEta - selfTime;
+            if (delta >= 0f)
+                return Mathf.Clamp01(delta / FastArrivalThreshold);
+
+            return -Mathf.Clamp01((-delta) / SlowArrivalThreshold);
+        }
+
+        private float MemoryMultiplier(int waypointIndex)
+        {
+            if (_lastVisited.TryGetValue(waypointIndex, out float lastTime))
+            {
+                float elapsed = Time.time - lastTime;
+                if (elapsed < MemoryCooldown)
+                {
+                    float t = Mathf.Clamp01(elapsed / MemoryCooldown);
+                    return Mathf.Lerp(MemoryPenaltyMultiplier, 1f, t);
+                }
+            }
+
+            return 1f;
+        }
+
+        private float CentralityFactor(Vector2 position, Vector2 mapCenter)
+        {
+            float distance = Vector2.Distance(position, mapCenter);
+            return 1f - Mathf.Clamp01(distance / CentralityNormalization);
+        }
+
+        private float EnemyPressure(GameData data, SpaceShipView self, Vector2 position)
+        {
+            if (data?.SpaceShips == null)
+                return 0f;
+
+            float pressure = 0f;
+            foreach (SpaceShipView ship in data.SpaceShips)
+            {
+                if (ship == null || ship.Owner == self.Owner)
+                    continue;
+
+                float distance = Vector2.Distance(position, ship.Position);
+                if (distance > EnemyPressureRadius)
+                    continue;
+
+                pressure += 1f - Mathf.Clamp01(distance / EnemyPressureRadius);
+            }
+
+            return Mathf.Clamp01(pressure);
+        }
+
+        private float ScoreDeficitFactor(SpaceShipView self, GameData data)
+        {
+            if (self == null || GameManager.Instance == null)
+                return 0.5f;
+
+            int myScore = GameManager.Instance.GetScoreForPlayer(self.Owner);
+            int bestOpponentScore = myScore;
+
+            if (data?.SpaceShips != null)
+            {
+                foreach (SpaceShipView ship in data.SpaceShips)
+                {
+                    if (ship == null || ship.Owner == self.Owner)
+                        continue;
+
+                    int score = GameManager.Instance.GetScoreForPlayer(ship.Owner);
+                    if (score > bestOpponentScore)
+                        bestOpponentScore = score;
+                }
+            }
+
+            int totalWaypoints = data?.WayPoints?.Count ?? 1;
+            int scoreDiff = bestOpponentScore - myScore;
+            float normalized = Mathf.Clamp01((scoreDiff / Mathf.Max(1f, totalWaypoints)) * 0.5f + 0.5f);
+            return normalized;
+        }
+
+        private Vector2 ComputeMapCenter(List<WayPointView> waypoints)
+        {
+            Vector2 sum = Vector2.zero;
+            int count = 0;
+            foreach (WayPointView waypoint in waypoints)
+            {
+                if (waypoint == null)
+                    continue;
+                sum += waypoint.Position;
+                count++;
+            }
+
+            return count > 0 ? sum / count : Vector2.zero;
+        }
+
+        private List<List<WayPointView>> ClusterWaypoints(List<WayPointView> waypoints)
         {
             List<List<WayPointView>> clusters = new();
-            if (data?.WayPoints == null || data.WayPoints.Count == 0)
+            if (waypoints == null || waypoints.Count == 0)
                 return clusters;
 
-            List<WayPointView> waypoints = data.WayPoints;
             bool[] visited = new bool[waypoints.Count];
 
             for (int i = 0; i < waypoints.Count; i++)
             {
-                WayPointView origin = waypoints[i];
-                if (origin == null || visited[i])
+                if (visited[i])
                     continue;
+
+                WayPointView origin = waypoints[i];
+                if (origin == null)
+                {
+                    visited[i] = true;
+                    continue;
+                }
 
                 List<WayPointView> cluster = new();
                 Queue<int> frontier = new();
@@ -119,16 +680,18 @@ namespace Teams.ActarusControllerV2.pierre
 
                 while (frontier.Count > 0)
                 {
-                    int currentIndex = frontier.Dequeue();
-                    WayPointView current = waypoints[currentIndex];
-                    if (current == null)
+                    int index = frontier.Dequeue();
+                    WayPointView waypoint = waypoints[index];
+                    if (waypoint == null)
                         continue;
 
-                    cluster.Add(current);
+                    cluster.Add(waypoint);
 
                     for (int j = 0; j < waypoints.Count; j++)
                     {
-                        if (visited[j]) continue;
+                        if (visited[j])
+                            continue;
+
                         WayPointView candidate = waypoints[j];
                         if (candidate == null)
                         {
@@ -136,7 +699,7 @@ namespace Teams.ActarusControllerV2.pierre
                             continue;
                         }
 
-                        float distance = Vector2.Distance(current.Position, candidate.Position);
+                        float distance = Vector2.Distance(waypoint.Position, candidate.Position);
                         if (distance <= ClusterDistanceThreshold)
                         {
                             visited[j] = true;
@@ -152,668 +715,44 @@ namespace Teams.ActarusControllerV2.pierre
             return clusters;
         }
 
-        // ──────────── Scoring ────────────
-        private float ComputeGroupScore(SpaceShipView self, GameData data, List<WayPointView> group)
+        // ────────────────────────────── Math helpers ──────────────────────────────
+        private static Vector2 OrientationToVector(float orientationDegrees)
         {
-            if (group == null || group.Count == 0)
-                return float.MinValue;
-
-            int enemyCount = 0;
-            int neutralCount = 0;
-            int allyCount = 0;
-            Vector2 centroid = Vector2.zero;
-            float totalDistance = 0f;
-
-            foreach (var wp in group)
-            {
-                if (wp == null) continue;
-                centroid += wp.Position;
-                totalDistance += Vector2.Distance(self.Position, wp.Position);
-
-                if (wp.Owner == -1) neutralCount++;
-                else if (wp.Owner == self.Owner) allyCount++;
-                else enemyCount++;
-            }
-
-            int total = group.Count;
-            centroid /= total;
-            float avgDistance = total > 0 ? totalDistance / total : 0f;
-
-            // ---- Facteurs environnementaux ----
-            float danger = DangerFactor(self, data, centroid);
-            float accessibility = OpenAreaFactor(self, data, centroid);
-            float allyPresence = AllyProximityFactor(self, data, centroid);
-            float projectileThreat = ProjectileThreatFactor(data, centroid);
-            float groupDispersion = GroupDispersion(group, centroid);
-            float readiness = SelfReadinessFactor(self);
-            float scoreUrgency = ScoreDeficitFactor(self, data);
-            float timePressure = TimePressureFactor(data);
-
-            // ---- Facteur pression ennemie ----
-            float enemyPressure = 0f;
-            foreach (var ship in data.SpaceShips)
-            {
-                if (ship == null || ship.Owner == self.Owner) continue;
-                float dist = Vector2.Distance(ship.Position, centroid);
-                if (dist < 8f)
-                    enemyPressure += 1f - Mathf.Clamp01(dist / 8f);
-            }
-            enemyPressure = Mathf.Clamp01(enemyPressure);
-
-            // ---- Facteur de contexte dynamique ----
-            float distanceFactor = 1f - Mathf.Clamp01(avgDistance / DistanceNormalization);
-            float enemyRatio = total > 0 ? (float)enemyCount / total : 0f;
-            float neutralRatio = total > 0 ? (float)neutralCount / total : 0f;
-            float allyControlRatio = total > 0 ? (float)allyCount / total : 0f;
-            float allyOvercrowding = Mathf.Clamp01(allyPresence * 1.2f);
-
-            // ---- Score pondéré ----
-            float score = 0f;
-            score += (enemyRatio * EnemyWeight) + (neutralRatio * NeutralWeight); // priorité aux cibles ennemies/neutres
-            score += distanceFactor * DistanceWeight;                              // plus proche = mieux
-            score += accessibility * AccessibilityWeight;                          // zones ouvertes privilégiées
-            score -= danger * DangerWeight;                                        // éviter les zones à risque
-            score -= enemyPressure * EnemyPressurePenaltyWeight;                   // pression directe ennemie
-            score -= projectileThreat * ProjectileDangerWeight;                    // menaces de projectiles
-            score -= allyOvercrowding * AllyPresenceWeight;                        // éviter la redondance alliée
-            score -= allyControlRatio * AllyControlledPenaltyWeight;               // éviter de camper sur nos points
-            score -= groupDispersion * SpreadPenaltyWeight;                        // clusters trop éparpillés
-
-            // facteurs dynamiques
-            score += ((readiness - 0.5f) * 2f) * ReadinessWeight;                  // adapter selon l'état du vaisseau
-            score += scoreUrgency * ScoreUrgencyWeight;                            // rattraper le retard
-            score += timePressure * TimeUrgencyWeight;                             // fin de partie = agressif
-
-            return score;
+            float radians = orientationDegrees * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
         }
 
-        private WayPointView SelectBestInGroup(SpaceShipView self, GameData data, List<WayPointView> group)
+        private static float DistancePointToSegment(Vector2 point, Vector2 segmentStart, Vector2 segmentEnd)
         {
-            WayPointView best = null;
-            float bestScore = float.MinValue;
+            Vector2 segment = segmentEnd - segmentStart;
+            float segmentLengthSq = segment.sqrMagnitude;
+            if (segmentLengthSq <= Mathf.Epsilon)
+                return Vector2.Distance(point, segmentStart);
 
-            Vector2 centroid = ComputeCentroid(group);
-
-            foreach (var wp in group)
-            {
-                if (wp == null) continue;
-
-                float distanceScore = DistanceFactor(self, wp);
-                float safetyScore = 1f - DangerFactor(self, data, wp.Position);
-                float controlScore = ControlFactor(self, wp);
-                float openArea = OpenAreaFactor(self, data, wp.Position);
-                float orientationScore = OrientationFactorRelativeToEnemy(self, data, wp);
-                float approachScore = ApproachAlignmentFactor(self, wp);
-                float travelScore = TravelEffortFactor(self, wp);
-                float projectilePenalty = ProjectileThreatFactor(data, wp.Position);
-                float ownedPenalty = (self != null && wp.Owner == self.Owner) ? 1f : 0f;
-
-                // Bonus si le waypoint est au centre du cluster (plus facile à défendre)
-                float centroidBias = 1f - Mathf.Clamp01(Vector2.Distance(centroid, wp.Position) / 5f);
-
-                // pondération améliorée
-                float score = 0f;
-                score += controlScore * IndividualControlWeight;                     // priorité à capturer un ennemi ou neutre
-                score += safetyScore * IndividualSafetyWeight;                       // éviter les pièges
-                score += distanceScore * IndividualDistanceWeight;                   // proche = mieux
-                score += openArea * 0.15f;                                         // zone dégagée
-                score += centroidBias * 0.1f;                                       // central = stable
-                score += orientationScore * IndividualOrientationWeight;             // exposer l'ennemi de dos
-                score += approachScore * IndividualApproachWeight;                   // limiter les corrections de trajectoire
-                score += travelScore * IndividualTravelWeight;                       // adapter selon vitesse/énergie
-                score -= projectilePenalty * IndividualProjectilePenaltyWeight;      // éviter les tirs incoming
-                score -= ownedPenalty * IndividualOwnedWaypointPenaltyWeight;        // quitter les points déjà capturés
-
-                if (score > bestScore)
-                {
-                    bestScore = score;
-                    best = wp;
-                }
-            }
-
-            return best;
-        }
-
-        // ──────────── Utils ────────────
-        private float DistanceFactor(SpaceShipView self, WayPointView waypoint)
-        {
-            if (self == null || waypoint == null)
-            {
-                return 0f;
-            }
-
-            float distance = Vector2.Distance(self.Position, waypoint.Position);
-            float normalized = 1f - Mathf.Clamp01(distance / DistanceNormalization);
-            return normalized;
-        }
-
-        private float DangerFactor(SpaceShipView self, GameData data, Vector2 position)
-        {
-            _ = self; // kept for extensibility (e.g. team-specific hazards)
-
-            if (data == null)
-            {
-                return 0f;
-            }
-
-            float accumulatedDanger = 0f;
-            int samples = 0;
-
-            if (data.Mines != null)
-            {
-                foreach (MineView mine in data.Mines)
-                {
-                    if (mine == null)
-                    {
-                        continue;
-                    }
-
-                    float distance = Vector2.Distance(position, mine.Position);
-                    float influenceRadius = mine.ExplosionRadius + HazardReach;
-                    if (influenceRadius <= 0f)
-                    {
-                        continue;
-                    }
-
-                    float factor = 1f - Mathf.Clamp01(distance / influenceRadius);
-                    if (factor <= 0f)
-                    {
-                        continue;
-                    }
-
-                    accumulatedDanger += mine.IsActive ? factor : factor * 0.5f;
-                    samples++;
-                }
-            }
-
-            if (data.Asteroids != null)
-            {
-                foreach (AsteroidView asteroid in data.Asteroids)
-                {
-                    if (asteroid == null)
-                    {
-                        continue;
-                    }
-
-                    float distance = Vector2.Distance(position, asteroid.Position);
-                    float influenceRadius = asteroid.Radius + HazardReach;
-                    if (influenceRadius <= 0f)
-                    {
-                        continue;
-                    }
-
-                    float factor = 1f - Mathf.Clamp01((distance - asteroid.Radius) / influenceRadius);
-                    if (factor <= 0f)
-                    {
-                        continue;
-                    }
-
-                    accumulatedDanger += Mathf.Clamp01(factor);
-                    samples++;
-                }
-            }
-
-            if (samples == 0)
-            {
-                return 0f;
-            }
-
-            return Mathf.Clamp01(accumulatedDanger / samples);
-        }
-
-        private float AllyProximityFactor(SpaceShipView self, GameData data, Vector2 position)
-        {
-            if (self == null || data?.SpaceShips == null)
-            {
-                return 0f;
-            }
-
-            float closestDistance = float.MaxValue;
-            foreach (SpaceShipView ship in data.SpaceShips)
-            {
-                if (ship == null || ship.Owner != self.Owner || ship == self)
-                {
-                    continue;
-                }
-
-                float distance = Vector2.Distance(position, ship.Position);
-                if (distance < closestDistance)
-                {
-                    closestDistance = distance;
-                }
-            }
-
-            if (closestDistance == float.MaxValue)
-            {
-                return 0f;
-            }
-
-            float normalized = 1f - Mathf.Clamp01(closestDistance / DistanceNormalization);
-            return normalized;
-        }
-
-        private float ControlFactor(SpaceShipView self, WayPointView waypoint)
-        {
-            if (self == null || waypoint == null)
-            {
-                return 0f;
-            }
-
-            if (waypoint.Owner == self.Owner)
-            {
-                return 0f;
-            }
-
-            if (waypoint.Owner == -1)
-            {
-                return 0.5f;
-            }
-
-            return 1f;
-        }
-
-        private float OrientationFactorRelativeToEnemy(SpaceShipView self, GameData data, WayPointView waypoint)
-        {
-            if (data == null || waypoint == null)
-            {
-                return 0.5f;
-            }
-
-            int selfOwner = self != null ? self.Owner : -1;
-            SpaceShipView enemy = FindEnemyShip(data, selfOwner, waypoint.Position);
-
-            if (enemy == null)
-            {
-                return 0.5f;
-            }
-
-            Vector2 toWaypoint = waypoint.Position - enemy.Position;
-            if (toWaypoint.sqrMagnitude < Mathf.Epsilon)
-            {
-                return 0.5f;
-            }
-
-            toWaypoint.Normalize();
-            Vector2 enemyForward = OrientationToVector(enemy.Orientation);
-            float dot = Vector2.Dot(enemyForward, toWaypoint);
-            float orientationScore = 0.5f * (1f - dot);
-            return Mathf.Clamp01(orientationScore);
-        }
-
-        private float ApproachAlignmentFactor(SpaceShipView self, WayPointView waypoint)
-        {
-            if (self == null || waypoint == null)
-            {
-                return 0.5f;
-            }
-
-            Vector2 desiredDirection = waypoint.Position - self.Position;
-            if (desiredDirection.sqrMagnitude < Mathf.Epsilon)
-            {
-                return 1f;
-            }
-            desiredDirection.Normalize();
-
-            Vector2 currentDirection;
-            if (self.Velocity.sqrMagnitude > 0.01f)
-            {
-                currentDirection = self.Velocity.normalized;
-            }
-            else
-            {
-                currentDirection = self.LookAt.sqrMagnitude > Mathf.Epsilon ? self.LookAt.normalized : desiredDirection;
-            }
-
-            float alignment = Mathf.Clamp01((Vector2.Dot(currentDirection, desiredDirection) + 1f) * 0.5f);
-            return alignment;
-        }
-
-        private float TravelEffortFactor(SpaceShipView self, WayPointView waypoint)
-        {
-            if (self == null || waypoint == null)
-            {
-                return 0.5f;
-            }
-
-            float distance = Vector2.Distance(self.Position, waypoint.Position);
-            float speed = Mathf.Max(0.1f, self.SpeedMax);
-            float travelTime = distance / speed;
-            float normalizedTime = 1f - Mathf.Clamp01(travelTime / TravelTimeNormalization);
-
-            float energy = Mathf.Clamp01(self.Energy);
-            float readinessPenalty = (self.HitPenaltyCountdown > 0f ? 0.25f : 0f) + (self.StunPenaltyCountdown > 0f ? 0.5f : 0f);
-            float readiness = Mathf.Clamp01(1f - readinessPenalty);
-
-            return Mathf.Clamp01(normalizedTime * (0.6f + 0.4f * energy) * readiness);
-        }
-
-        private float OpenAreaFactor(SpaceShipView self, GameData data, Vector2 targetPosition)
-        {
-            if (self == null)
-            {
-                return 0f;
-            }
-
-            if (data?.Asteroids == null || data.Asteroids.Count == 0)
-            {
-                return 1f;
-            }
-
-            Vector2 origin = self.Position;
-            float maxBlocking = 0f;
-
-            foreach (AsteroidView asteroid in data.Asteroids)
-            {
-                if (asteroid == null)
-                {
-                    continue;
-                }
-
-                float distanceToPath = DistancePointToSegment(asteroid.Position, origin, targetPosition);
-                float safeRadius = asteroid.Radius + AsteroidBuffer;
-                if (safeRadius <= 0f)
-                {
-                    continue;
-                }
-
-                float obstruction = 1f - Mathf.Clamp01((distanceToPath - asteroid.Radius) / safeRadius);
-                if (obstruction > maxBlocking)
-                {
-                    maxBlocking = obstruction;
-                }
-            }
-
-            float openArea = 1f - Mathf.Clamp01(maxBlocking);
-            return openArea;
-        }
-
-        private float DistancePointToSegment(Vector2 point, Vector2 a, Vector2 b)
-        {
-            Vector2 ab = b - a;
-            if (ab.sqrMagnitude < Mathf.Epsilon)
-            {
-                return Vector2.Distance(point, a);
-            }
-
-            float t = Vector2.Dot(point - a, ab) / ab.sqrMagnitude;
-            t = Mathf.Clamp01(t);
-            Vector2 closest = a + ab * t;
+            float projection = Vector2.Dot(point - segmentStart, segment) / segmentLengthSq;
+            projection = Mathf.Clamp01(projection);
+            Vector2 closest = segmentStart + projection * segment;
             return Vector2.Distance(point, closest);
         }
 
-        private SpaceShipView FindEnemyShip(GameData data, int selfOwner, Vector2 targetPosition)
-        {
-            if (data?.SpaceShips == null)
-            {
-                return null;
-            }
-
-            SpaceShipView best = null;
-            float bestDistance = float.MaxValue;
-
-            foreach (SpaceShipView ship in data.SpaceShips)
-            {
-                if (ship == null)
-                {
-                    continue;
-                }
-
-                if (selfOwner != -1 && ship.Owner == selfOwner)
-                {
-                    continue;
-                }
-
-                float sqrDistance = (ship.Position - targetPosition).sqrMagnitude;
-                if (sqrDistance < bestDistance)
-                {
-                    bestDistance = sqrDistance;
-                    best = ship;
-                }
-            }
-
-            return best;
-        }
-
-        private Vector2 OrientationToVector(float orientationDegrees)
-        {
-            float rad = orientationDegrees * Mathf.Deg2Rad;
-            return new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
-        }
-
-        private Vector2 ComputeCentroid(List<WayPointView> group)
-        {
-            if (group == null || group.Count == 0)
-            {
-                return Vector2.zero;
-            }
-
-            Vector2 centroid = Vector2.zero;
-            foreach (var wp in group)
-            {
-                if (wp == null) continue;
-                centroid += wp.Position;
-            }
-
-            return centroid / group.Count;
-        }
-
-        private float GroupDispersion(List<WayPointView> group, Vector2 centroid)
-        {
-            if (group == null || group.Count == 0)
-            {
-                return 0f;
-            }
-
-            float accum = 0f;
-            int count = 0;
-            foreach (var wp in group)
-            {
-                if (wp == null) continue;
-                accum += Vector2.Distance(wp.Position, centroid);
-                count++;
-            }
-
-            if (count == 0)
-            {
-                return 0f;
-            }
-
-            float avg = accum / count;
-            return Mathf.Clamp01(avg / SpreadNormalization);
-        }
-
-        private float ProjectileThreatFactor(GameData data, Vector2 position)
-        {
-            if (data?.Bullets == null || data.Bullets.Count == 0)
-            {
-                return 0f;
-            }
-
-            float accumulatedThreat = 0f;
-            int samples = 0;
-
-            foreach (BulletView bullet in data.Bullets)
-            {
-                if (bullet == null)
-                {
-                    continue;
-                }
-
-                Vector2 toPosition = position - bullet.Position;
-                float distance = toPosition.magnitude;
-                if (distance > ProjectileDangerReach)
-                {
-                    continue;
-                }
-
-                Vector2 velocity = bullet.Velocity;
-                if (velocity.sqrMagnitude < Mathf.Epsilon)
-                {
-                    continue;
-                }
-
-                float alignment = Mathf.Clamp01(Vector2.Dot(velocity.normalized, toPosition.normalized));
-                float factor = (1f - Mathf.Clamp01(distance / ProjectileDangerReach)) * alignment;
-                if (factor <= 0f)
-                {
-                    continue;
-                }
-
-                accumulatedThreat += factor;
-                samples++;
-            }
-
-            if (samples == 0)
-            {
-                return 0f;
-            }
-
-            return Mathf.Clamp01(accumulatedThreat / samples);
-        }
-
-        private float SelfReadinessFactor(SpaceShipView self)
-        {
-            if (self == null)
-            {
-                return 0.5f;
-            }
-
-            float energy = Mathf.Clamp01(self.Energy);
-            float hitPenalty = self.HitPenaltyCountdown > 0f ? 0.4f : 0f;
-            float stunPenalty = self.StunPenaltyCountdown > 0f ? 0.6f : 0f;
-            float mobility = self.Velocity.magnitude / Mathf.Max(0.1f, self.SpeedMax);
-
-            float readiness = 0.4f * energy + 0.35f * Mathf.Clamp01(mobility) + 0.25f * (self.Thrust > 0f ? 1f : 0.5f);
-            readiness *= Mathf.Clamp01(1f - hitPenalty - stunPenalty);
-
-            return Mathf.Clamp01(readiness);
-        }
-
-        private float ScoreDeficitFactor(SpaceShipView self, GameData data)
-        {
-            if (self == null || GameManager.Instance == null)
-            {
-                return 0f;
-            }
-
-            int myScore = GameManager.Instance.GetWayPointScoreForPlayer(self.Owner);
-            int bestOpponent = myScore;
-
-            if (data?.SpaceShips != null)
-            {
-                foreach (SpaceShipView ship in data.SpaceShips)
-                {
-                    if (ship == null || ship.Owner == self.Owner)
-                    {
-                        continue;
-                    }
-
-                    int enemyScore = GameManager.Instance.GetWayPointScoreForPlayer(ship.Owner);
-                    if (enemyScore > bestOpponent)
-                    {
-                        bestOpponent = enemyScore;
-                    }
-                }
-            }
-
-            int totalWaypoints = data?.WayPoints?.Count ?? 0;
-            if (totalWaypoints == 0)
-            {
-                return 0f;
-            }
-
-            int diff = myScore - bestOpponent;
-            float normalized = Mathf.Clamp((float)diff / totalWaypoints, -1f, 1f);
-            return -normalized; // positif quand on est en retard
-        }
-
-        private float TimePressureFactor(GameData data)
-        {
-            if (data == null)
-            {
-                return 0f;
-            }
-
-            const float endGameWindow = 20f; // secondes
-            float timeLeft = Mathf.Max(0f, data.timeLeft);
-            if (timeLeft >= endGameWindow)
-            {
-                return 0f;
-            }
-
-            return 1f - Mathf.Clamp01(timeLeft / endGameWindow);
-        }
-
-
-        // ──────────── DEBUG VISUALIZATION ────────────
+        // ────────────────────────────── Debug rendering ──────────────────────────────
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
-        private void DrawDebug(SpaceShipView self, List<WayPointView> bestGroup, WayPointView bestWaypoint)
+        private void DrawDebug(SpaceShipView self, WayPointView waypoint, float eta, float score)
         {
-            if (self == null) return;
+            if (self == null || waypoint == null)
+                return;
 
-            const float lineDuration = 0.1f;
-            const float textOffset = 0.8f;
+            const float textOffset = 0.75f;
+            const float lineDuration = 0.25f;
 
-            // ─────────────── CLUSTERS ───────────────
-            for (int i = 0; i < _lastClusters.Count; i++)
-            {
-                var cluster = _lastClusters[i];
-                if (cluster.Count == 0) continue;
-
-                // Couleur douce et translucide
-                Color clusterColor = new Color(0.3f, 0.6f, 1f, 0.25f);
-
-                // Calcul du centroïde pour affichage
-                Vector2 centroid = Vector2.zero;
-                foreach (var wp in cluster)
-                    centroid += wp.Position;
-                centroid /= cluster.Count;
-
-                // Score moyen (trouvé dans _lastGroupScores)
-                float score = 0f;
-                foreach (var (pos, val) in _lastGroupScores)
-                {
-                    if ((pos - centroid).sqrMagnitude < 0.5f)
-                    {
-                        score = val;
-                        break;
-                    }
-                }
-
-                // Sphère de cluster + texte score
-                DebugExtension.DrawSphere(centroid, clusterColor, DebugSphereSize * 0.7f);
-                if (score != 0)
-                {
-                    Color txtColor = Color.Lerp(Color.red, Color.green, Mathf.InverseLerp(-1f, 1f, score));
-                    DebugExtension.DrawText(centroid + Vector2.up * textOffset, $"Cluster {i}\nS={score:F2}", txtColor,
-                        0.9f);
-                }
-
-                // Si c’est le meilleur cluster, le surligner
-                if (bestGroup != null && cluster == bestGroup)
-                {
-                    foreach (var wp in cluster)
-                    {
-                        Debug.DrawLine(self.Position, wp.Position, DebugBestClusterColor, lineDuration);
-                        DebugExtension.DrawSphere(wp.Position, DebugBestClusterColor, DebugSphereSize);
-                    }
-                }
-                else
-                {
-                    // Sinon juste des sphères discrètes
-                    foreach (var wp in cluster)
-                        DebugExtension.DrawSphere(wp.Position, clusterColor, DebugSphereSize * 0.5f);
-                }
-            }
-
-            // ─────────────── WAYPOINT CHOISI ───────────────
-            if (bestWaypoint != null)
-            {
-                Debug.DrawLine(self.Position, bestWaypoint.Position, DebugBestWaypointColor, lineDuration);
-                DebugExtension.DrawSphere(bestWaypoint.Position, DebugBestWaypointColor, DebugSphereSize * 1.4f);
-                DebugExtension.DrawText(bestWaypoint.Position + Vector2.up * textOffset, "★ TARGET",
-                    DebugBestWaypointColor, 1.1f);
-            }
+            Debug.DrawLine(self.Position, waypoint.Position, DebugLineColor, lineDuration);
+            DebugExtension.DrawSphere(waypoint.Position, DebugSphereColor, DebugSphereSize);
+            DebugExtension.DrawText(
+                waypoint.Position + Vector2.up * textOffset,
+                $"ETA={eta:F1}s | SCORE={score:F2}",
+                Color.white,
+                DebugTextSize,
+                lineDuration);
         }
     }
 }
