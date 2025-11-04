@@ -13,20 +13,34 @@ namespace Teams.ActarusControllerV2.pierre
         private const float DistanceNormalization = 12f;
         private const float HazardReach = 6f;
         private const float AsteroidBuffer = 0.75f;
+        private const float ProjectileDangerReach = 5f;
+        private const float SpreadNormalization = 6f;
+        private const float TravelTimeNormalization = 6f;
 
         // Group score weights (tweakable)
         private const float EnemyWeight = 0.7f;
-        private const float NeutralWeight = 0.4f;
-        private const float DistanceWeight = 0.6f;
-        private const float DangerWeight = 0.5f;
-        private const float AccessibilityWeight = 0.3f;
-        private const float AllyPresenceWeight = 0.3f;
+        private const float NeutralWeight = 0.45f;
+        private const float DistanceWeight = 0.55f;
+        private const float DangerWeight = 0.55f;
+        private const float AccessibilityWeight = 0.35f;
+        private const float AllyPresenceWeight = 0.25f;
+        private const float AllyControlledPenaltyWeight = 0.6f;
+        private const float EnemyPressurePenaltyWeight = 0.35f;
+        private const float ProjectileDangerWeight = 0.45f;
+        private const float SpreadPenaltyWeight = 0.3f;
+        private const float ReadinessWeight = 0.25f;
+        private const float ScoreUrgencyWeight = 0.3f;
+        private const float TimeUrgencyWeight = 0.2f;
 
         // Individual waypoint weights (tweakable)
-        private const float IndividualDistanceWeight = 0.35f;
-        private const float IndividualControlWeight = 0.4f;
+        private const float IndividualDistanceWeight = 0.3f;
+        private const float IndividualControlWeight = 0.42f;
         private const float IndividualSafetyWeight = 0.15f;
-        private const float IndividualOrientationWeight = 0.1f;
+        private const float IndividualOrientationWeight = 0.08f;
+        private const float IndividualApproachWeight = 0.08f;
+        private const float IndividualTravelWeight = 0.12f;
+        private const float IndividualProjectilePenaltyWeight = 0.12f;
+        private const float IndividualOwnedWaypointPenaltyWeight = 0.35f;
 
         // Debug
         private const float DebugTextSize = 0.8f;
@@ -65,9 +79,7 @@ namespace Teams.ActarusControllerV2.pierre
                 }
 
                 // Debug store centroid & score
-                Vector2 centroid = Vector2.zero;
-                foreach (var wp in group) centroid += wp.Position;
-                centroid /= group.Count;
+                Vector2 centroid = ComputeCentroid(group);
                 _lastGroupScores.Add((centroid, score));
             }
 
@@ -150,13 +162,13 @@ namespace Teams.ActarusControllerV2.pierre
             int neutralCount = 0;
             int allyCount = 0;
             Vector2 centroid = Vector2.zero;
-            float avgDistance = 0f;
+            float totalDistance = 0f;
 
             foreach (var wp in group)
             {
                 if (wp == null) continue;
                 centroid += wp.Position;
-                avgDistance += Vector2.Distance(self.Position, wp.Position);
+                totalDistance += Vector2.Distance(self.Position, wp.Position);
 
                 if (wp.Owner == -1) neutralCount++;
                 else if (wp.Owner == self.Owner) allyCount++;
@@ -165,12 +177,17 @@ namespace Teams.ActarusControllerV2.pierre
 
             int total = group.Count;
             centroid /= total;
-            avgDistance /= total;
+            float avgDistance = total > 0 ? totalDistance / total : 0f;
 
             // ---- Facteurs environnementaux ----
             float danger = DangerFactor(self, data, centroid);
             float accessibility = OpenAreaFactor(self, data, centroid);
             float allyPresence = AllyProximityFactor(self, data, centroid);
+            float projectileThreat = ProjectileThreatFactor(data, centroid);
+            float groupDispersion = GroupDispersion(group, centroid);
+            float readiness = SelfReadinessFactor(self);
+            float scoreUrgency = ScoreDeficitFactor(self, data);
+            float timePressure = TimePressureFactor(data);
 
             // ---- Facteur pression ennemie ----
             float enemyPressure = 0f;
@@ -185,17 +202,27 @@ namespace Teams.ActarusControllerV2.pierre
 
             // ---- Facteur de contexte dynamique ----
             float distanceFactor = 1f - Mathf.Clamp01(avgDistance / DistanceNormalization);
-            float captureUrgency = Mathf.Clamp01((float)enemyCount / total * 1.2f + (float)neutralCount / total * 0.8f);
+            float enemyRatio = total > 0 ? (float)enemyCount / total : 0f;
+            float neutralRatio = total > 0 ? (float)neutralCount / total : 0f;
+            float allyControlRatio = total > 0 ? (float)allyCount / total : 0f;
             float allyOvercrowding = Mathf.Clamp01(allyPresence * 1.2f);
 
             // ---- Score pondéré ----
             float score = 0f;
-            score += captureUrgency * 0.6f;               // favorise les groupes avec des points neutres/ennemis
-            score += distanceFactor * 0.4f;               // plus proche = mieux
-            score += accessibility * 0.3f;                // plus ouvert = mieux
-            score -= danger * 0.5f;                       // zones dangereuses = moins bien
-            score -= enemyPressure * 0.3f;                // trop d'ennemis autour = évite
-            score -= allyOvercrowding * 0.25f;            // trop d'alliés = pas prioritaire
+            score += (enemyRatio * EnemyWeight) + (neutralRatio * NeutralWeight); // priorité aux cibles ennemies/neutres
+            score += distanceFactor * DistanceWeight;                              // plus proche = mieux
+            score += accessibility * AccessibilityWeight;                          // zones ouvertes privilégiées
+            score -= danger * DangerWeight;                                        // éviter les zones à risque
+            score -= enemyPressure * EnemyPressurePenaltyWeight;                   // pression directe ennemie
+            score -= projectileThreat * ProjectileDangerWeight;                    // menaces de projectiles
+            score -= allyOvercrowding * AllyPresenceWeight;                        // éviter la redondance alliée
+            score -= allyControlRatio * AllyControlledPenaltyWeight;               // éviter de camper sur nos points
+            score -= groupDispersion * SpreadPenaltyWeight;                        // clusters trop éparpillés
+
+            // facteurs dynamiques
+            score += ((readiness - 0.5f) * 2f) * ReadinessWeight;                  // adapter selon l'état du vaisseau
+            score += scoreUrgency * ScoreUrgencyWeight;                            // rattraper le retard
+            score += timePressure * TimeUrgencyWeight;                             // fin de partie = agressif
 
             return score;
         }
@@ -205,6 +232,8 @@ namespace Teams.ActarusControllerV2.pierre
             WayPointView best = null;
             float bestScore = float.MinValue;
 
+            Vector2 centroid = ComputeCentroid(group);
+
             foreach (var wp in group)
             {
                 if (wp == null) continue;
@@ -213,20 +242,27 @@ namespace Teams.ActarusControllerV2.pierre
                 float safetyScore = 1f - DangerFactor(self, data, wp.Position);
                 float controlScore = ControlFactor(self, wp);
                 float openArea = OpenAreaFactor(self, data, wp.Position);
+                float orientationScore = OrientationFactorRelativeToEnemy(self, data, wp);
+                float approachScore = ApproachAlignmentFactor(self, wp);
+                float travelScore = TravelEffortFactor(self, wp);
+                float projectilePenalty = ProjectileThreatFactor(data, wp.Position);
+                float ownedPenalty = (self != null && wp.Owner == self.Owner) ? 1f : 0f;
 
                 // Bonus si le waypoint est au centre du cluster (plus facile à défendre)
-                Vector2 centroid = Vector2.zero;
-                foreach (var g in group) centroid += g.Position;
-                centroid /= group.Count;
                 float centroidBias = 1f - Mathf.Clamp01(Vector2.Distance(centroid, wp.Position) / 5f);
 
                 // pondération améliorée
                 float score = 0f;
-                score += controlScore * 0.45f;            // priorité à capturer un ennemi ou neutre
-                score += safetyScore * 0.25f;             // éviter les pièges
-                score += distanceScore * 0.20f;           // proche = mieux
-                score += openArea * 0.15f;                // zone dégagée
-                score += centroidBias * 0.1f;             // central = stable
+                score += controlScore * IndividualControlWeight;                     // priorité à capturer un ennemi ou neutre
+                score += safetyScore * IndividualSafetyWeight;                       // éviter les pièges
+                score += distanceScore * IndividualDistanceWeight;                   // proche = mieux
+                score += openArea * 0.15f;                                         // zone dégagée
+                score += centroidBias * 0.1f;                                       // central = stable
+                score += orientationScore * IndividualOrientationWeight;             // exposer l'ennemi de dos
+                score += approachScore * IndividualApproachWeight;                   // limiter les corrections de trajectoire
+                score += travelScore * IndividualTravelWeight;                       // adapter selon vitesse/énergie
+                score -= projectilePenalty * IndividualProjectilePenaltyWeight;      // éviter les tirs incoming
+                score -= ownedPenalty * IndividualOwnedWaypointPenaltyWeight;        // quitter les points déjà capturés
 
                 if (score > bestScore)
                 {
@@ -404,6 +440,53 @@ namespace Teams.ActarusControllerV2.pierre
             return Mathf.Clamp01(orientationScore);
         }
 
+        private float ApproachAlignmentFactor(SpaceShipView self, WayPointView waypoint)
+        {
+            if (self == null || waypoint == null)
+            {
+                return 0.5f;
+            }
+
+            Vector2 desiredDirection = waypoint.Position - self.Position;
+            if (desiredDirection.sqrMagnitude < Mathf.Epsilon)
+            {
+                return 1f;
+            }
+            desiredDirection.Normalize();
+
+            Vector2 currentDirection;
+            if (self.Velocity.sqrMagnitude > 0.01f)
+            {
+                currentDirection = self.Velocity.normalized;
+            }
+            else
+            {
+                currentDirection = self.LookAt.sqrMagnitude > Mathf.Epsilon ? self.LookAt.normalized : desiredDirection;
+            }
+
+            float alignment = Mathf.Clamp01((Vector2.Dot(currentDirection, desiredDirection) + 1f) * 0.5f);
+            return alignment;
+        }
+
+        private float TravelEffortFactor(SpaceShipView self, WayPointView waypoint)
+        {
+            if (self == null || waypoint == null)
+            {
+                return 0.5f;
+            }
+
+            float distance = Vector2.Distance(self.Position, waypoint.Position);
+            float speed = Mathf.Max(0.1f, self.SpeedMax);
+            float travelTime = distance / speed;
+            float normalizedTime = 1f - Mathf.Clamp01(travelTime / TravelTimeNormalization);
+
+            float energy = Mathf.Clamp01(self.Energy);
+            float readinessPenalty = (self.HitPenaltyCountdown > 0f ? 0.25f : 0f) + (self.StunPenaltyCountdown > 0f ? 0.5f : 0f);
+            float readiness = Mathf.Clamp01(1f - readinessPenalty);
+
+            return Mathf.Clamp01(normalizedTime * (0.6f + 0.4f * energy) * readiness);
+        }
+
         private float OpenAreaFactor(SpaceShipView self, GameData data, Vector2 targetPosition)
         {
             if (self == null)
@@ -495,6 +578,170 @@ namespace Teams.ActarusControllerV2.pierre
         {
             float rad = orientationDegrees * Mathf.Deg2Rad;
             return new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
+        }
+
+        private Vector2 ComputeCentroid(List<WayPointView> group)
+        {
+            if (group == null || group.Count == 0)
+            {
+                return Vector2.zero;
+            }
+
+            Vector2 centroid = Vector2.zero;
+            foreach (var wp in group)
+            {
+                if (wp == null) continue;
+                centroid += wp.Position;
+            }
+
+            return centroid / group.Count;
+        }
+
+        private float GroupDispersion(List<WayPointView> group, Vector2 centroid)
+        {
+            if (group == null || group.Count == 0)
+            {
+                return 0f;
+            }
+
+            float accum = 0f;
+            int count = 0;
+            foreach (var wp in group)
+            {
+                if (wp == null) continue;
+                accum += Vector2.Distance(wp.Position, centroid);
+                count++;
+            }
+
+            if (count == 0)
+            {
+                return 0f;
+            }
+
+            float avg = accum / count;
+            return Mathf.Clamp01(avg / SpreadNormalization);
+        }
+
+        private float ProjectileThreatFactor(GameData data, Vector2 position)
+        {
+            if (data?.Bullets == null || data.Bullets.Count == 0)
+            {
+                return 0f;
+            }
+
+            float accumulatedThreat = 0f;
+            int samples = 0;
+
+            foreach (BulletView bullet in data.Bullets)
+            {
+                if (bullet == null)
+                {
+                    continue;
+                }
+
+                Vector2 toPosition = position - bullet.Position;
+                float distance = toPosition.magnitude;
+                if (distance > ProjectileDangerReach)
+                {
+                    continue;
+                }
+
+                Vector2 velocity = bullet.Velocity;
+                if (velocity.sqrMagnitude < Mathf.Epsilon)
+                {
+                    continue;
+                }
+
+                float alignment = Mathf.Clamp01(Vector2.Dot(velocity.normalized, toPosition.normalized));
+                float factor = (1f - Mathf.Clamp01(distance / ProjectileDangerReach)) * alignment;
+                if (factor <= 0f)
+                {
+                    continue;
+                }
+
+                accumulatedThreat += factor;
+                samples++;
+            }
+
+            if (samples == 0)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp01(accumulatedThreat / samples);
+        }
+
+        private float SelfReadinessFactor(SpaceShipView self)
+        {
+            if (self == null)
+            {
+                return 0.5f;
+            }
+
+            float energy = Mathf.Clamp01(self.Energy);
+            float hitPenalty = self.HitPenaltyCountdown > 0f ? 0.4f : 0f;
+            float stunPenalty = self.StunPenaltyCountdown > 0f ? 0.6f : 0f;
+            float mobility = self.Velocity.magnitude / Mathf.Max(0.1f, self.SpeedMax);
+
+            float readiness = 0.4f * energy + 0.35f * Mathf.Clamp01(mobility) + 0.25f * (self.Thrust > 0f ? 1f : 0.5f);
+            readiness *= Mathf.Clamp01(1f - hitPenalty - stunPenalty);
+
+            return Mathf.Clamp01(readiness);
+        }
+
+        private float ScoreDeficitFactor(SpaceShipView self, GameData data)
+        {
+            if (self == null || GameManager.Instance == null)
+            {
+                return 0f;
+            }
+
+            int myScore = GameManager.Instance.GetWayPointScoreForPlayer(self.Owner);
+            int bestOpponent = myScore;
+
+            if (data?.SpaceShips != null)
+            {
+                foreach (SpaceShipView ship in data.SpaceShips)
+                {
+                    if (ship == null || ship.Owner == self.Owner)
+                    {
+                        continue;
+                    }
+
+                    int enemyScore = GameManager.Instance.GetWayPointScoreForPlayer(ship.Owner);
+                    if (enemyScore > bestOpponent)
+                    {
+                        bestOpponent = enemyScore;
+                    }
+                }
+            }
+
+            int totalWaypoints = data?.WayPoints?.Count ?? 0;
+            if (totalWaypoints == 0)
+            {
+                return 0f;
+            }
+
+            int diff = myScore - bestOpponent;
+            float normalized = Mathf.Clamp((float)diff / totalWaypoints, -1f, 1f);
+            return -normalized; // positif quand on est en retard
+        }
+
+        private float TimePressureFactor(GameData data)
+        {
+            if (data == null)
+            {
+                return 0f;
+            }
+
+            const float endGameWindow = 20f; // secondes
+            float timeLeft = Mathf.Max(0f, data.timeLeft);
+            if (timeLeft >= endGameWindow)
+            {
+                return 0f;
+            }
+
+            return 1f - Mathf.Clamp01(timeLeft / endGameWindow);
         }
 
 
