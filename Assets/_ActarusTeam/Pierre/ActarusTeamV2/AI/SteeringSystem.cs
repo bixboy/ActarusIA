@@ -343,16 +343,16 @@ namespace Teams.ActarusControllerV2.pierre
         private float ComputeThrust(SpaceShipView self, Vector2 steering)
         {
             Vector2 forward = Blackboard.AngleToDir(self.Orientation);
-            float align = steering.sqrMagnitude > 0.0001f
-                ? Mathf.Clamp01(Vector2.Dot(forward, steering.normalized))
-                : 0f;
+            float align = steering.sqrMagnitude > 0.0001f ? Mathf.Clamp01(Vector2.Dot(forward, steering.normalized)) : 0f;
 
             float thrustBase;
-            if (self.Energy < LowEnergyThreshold)       thrustBase = 0.25f;
-            else if (self.Energy < MidEnergyThreshold) thrustBase = 0.55f;
-            else                                       thrustBase = 0.8f;
+            if (self.Energy < LowEnergyThreshold)       
+                thrustBase = 0.25f;
+            else if (self.Energy < MidEnergyThreshold) 
+                thrustBase = 0.55f;
+            else                                       
+                thrustBase = 0.8f;
 
-            // pousse un peu plus en capture/attaque
             if (_blackboard.ShouldCapture || _blackboard.ShouldEngageEnemy)
                 thrustBase = Mathf.Min(1.0f, thrustBase + 0.2f);
 

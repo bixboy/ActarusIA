@@ -66,6 +66,7 @@ namespace Teams.ActarusControllerV2.pierre
             score -= metrics.Danger * AIConstants.DangerPenaltyWeight * context.CautionBias;
             score -= metrics.EnemyPressure * AIConstants.EnemyPressurePenalty * context.CautionBias;
             score -= metrics.InterceptThreat * AIConstants.EnemyInterceptPenalty * context.CautionBias;
+            score -= ComputeTurnPenalty(metrics);
 
             if (metrics.TravelTime < AIConstants.FastArrivalThreshold)
                 score += AIConstants.QuickCaptureBonus * context.AggressionBias;
@@ -85,6 +86,21 @@ namespace Teams.ActarusControllerV2.pierre
             score += metrics.CaptureSwing * AIConstants.EndgameSwingWeight * Mathf.Lerp(0.8f, 1.3f, context.EndgameUrgency);
 
             return score;
+        }
+
+        private static float ComputeTurnPenalty(WaypointMetrics metrics)
+        {
+            float misalignment = 1f - Mathf.Clamp01(metrics.Approach);
+            if (misalignment <= 0f)
+                return 0f;
+
+            float proximityFactor = Mathf.Lerp(0.6f, 1.15f, Mathf.Clamp01(metrics.DistanceFactor));
+            float orientationPenalty = Mathf.Clamp01(1f - Mathf.Clamp01(metrics.Orientation));
+
+            float penalty = misalignment * proximityFactor;
+            penalty = Mathf.Lerp(penalty, penalty * 1.35f, orientationPenalty);
+
+            return penalty * AIConstants.TurnPenaltyWeight;
         }
     }
 }
