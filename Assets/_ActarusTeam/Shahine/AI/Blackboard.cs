@@ -1,65 +1,72 @@
 using System.Collections.Generic;
 using System.Linq;
 using DoNotModify;
+using NaughtyAttributes;
+using Teams.ActarusControllerV2.pierre;
 using UnityEngine;
+
 
 namespace Teams.ActarusController.Shahine
 {
     /// <summary>
     /// Central data store shared across all AI subsystems.
     /// </summary>
-    public sealed class Blackboard
+    public sealed class Blackboard : MonoBehaviour
     {
-        public SpaceShipView myShip;
-        public SpaceShipView enemyShip;
+        [ReadOnly] public SpaceShipView myShip;
+        [ReadOnly] public SpaceShipView enemyShip;
 
-        public List<WayPointView> waypoints;
-        public List<AsteroidView> asteroids;
-        public List<MineView> mines;
-        public List<BulletView> bullets;
+        [ReadOnly] public List<WayPointView> waypoints;
+        [ReadOnly] public List<AsteroidView> asteroids;
+        [ReadOnly] public List<MineView> mines;
+        [ReadOnly] public List<BulletView> bullets;
 
-        public WayPointView nextWayPoint;
-        public WayPointView targetWaypoint;
-        public WayPointView lastWayPoint;
 
-        public float distanceToNextTarget;
-        public float distanceToTarget;
-        public float distanceToLastTarget;
+        [Header("Targets")] private WaypointPrioritySystem _waypointPrioritySystem;
         
-        public float energy;
-        public float timeLeft;
+        [ReadOnly] public WayPointView nextWayPoint;
+        [ReadOnly] public WayPointView targetWaypoint;
+        [ReadOnly] public WayPointView lastWayPoint;
 
-        public bool hasToDropMine;
-        public bool hasToShoot;
-        public bool hasToFireShockwave;
+        [ReadOnly] public float distanceToNextTarget;
+        [ReadOnly] public float distanceToTarget;
+        [ReadOnly] public float distanceToLastTarget;
 
+        [ReadOnly] public float energy;
+        [ReadOnly] public float timeLeft;
+
+        [ReadOnly] public bool hasToDropMine;
+        [ReadOnly] public bool hasToShoot;
+        [ReadOnly] public bool hasToFireShockwave;
+ 
         public float angleTolerance = 25f;
         
         
-        public static Blackboard InitializeFromGameData(SpaceShipView ship, GameData data)
+        public void InitializeFromGameData(SpaceShipView ship, GameData data)
         {
-            var bb = new Blackboard
+
+            myShip = ship;
+            enemyShip = data.SpaceShips.First(s => s.Owner != ship.Owner);
+            waypoints = data.WayPoints;
+            asteroids = data.Asteroids;
+            mines = data.Mines;
+            bullets = data.Bullets;
+            energy = ship.Energy;
+            timeLeft = data.timeLeft;
+
+            _waypointPrioritySystem = new WaypointPrioritySystem();
+            WaypointSelectionResult selectionResult = _waypointPrioritySystem.SelectBestWaypoint(ship, data);
+            
+            targetWaypoint = selectionResult.TargetWaypoint;
+            nextWayPoint = selectionResult.FutureWaypoints[0];
+
+            if (targetWaypoint != null)
+                distanceToTarget = Vector2.Distance(ship.Position, targetWaypoint.Position);
+
+            if (nextWayPoint != null)
             {
-                myShip = ship,
-                enemyShip = data.SpaceShips.First(s => s.Owner != ship.Owner),
-                waypoints = data.WayPoints,
-                asteroids = data.Asteroids,
-                mines = data.Mines,
-                bullets = data.Bullets,
-                energy = ship.Energy,
-                timeLeft = data.timeLeft,
-                
-                // Sélection de la balise non contrôlée la plus proche
-                targetWaypoint = data.WayPoints
-                    .Where(w => w.Owner != ship.Owner)
-                    .OrderBy(w => Vector2.Distance(ship.Position, w.Position))
-                    .FirstOrDefault()
-            };
-
-            if (bb.targetWaypoint != null)
-                bb.distanceToTarget = Vector2.Distance(ship.Position, bb.targetWaypoint.Position);
-
-            return bb;
+                distanceToNextTarget = Vector2.Distance(ship.Position, nextWayPoint.Position);
+            }
         }
 
         public void UpdateFromGameData(GameData data)
@@ -69,45 +76,16 @@ namespace Teams.ActarusController.Shahine
             
             if (targetWaypoint == null || targetWaypoint.Owner == myShip.Owner)
             {
+                WaypointSelectionResult selectionResult = _waypointPrioritySystem.SelectBestWaypoint(myShip, data);
                 lastWayPoint = targetWaypoint;
-                targetWaypoint = data.WayPoints
-                    .Where(w => w.Owner != myShip.Owner)
-                    .OrderBy(w => Vector2.Distance(myShip.Position, w.Position))
-                    .FirstOrDefault();
+                targetWaypoint = selectionResult.TargetWaypoint;
+                targetWaypoint = selectionResult.TargetWaypoint;
+                nextWayPoint = selectionResult.FutureWaypoints[0];
             }
 
             if (targetWaypoint != null)
-            {
                 distanceToTarget = Vector2.Distance(myShip.Position, targetWaypoint.Position);
-                
-                Vector2 currentVelocity = myShip.Velocity.sqrMagnitude > 0.01f 
-                    ? myShip.Velocity.normalized 
-                    : (targetWaypoint.Position - myShip.Position).normalized;
-
-                Vector2 currentTargetPos = targetWaypoint.Position;
-
-
-                nextWayPoint = waypoints
-                    .Where(w =>
-                        w != targetWaypoint &&  
-                        w.Owner != myShip.Owner)                
-                    .OrderByDescending(w =>
-                    {
-                        // Distance
-                        float distScore = 1f - Mathf.Clamp01(Vector2.Distance(currentTargetPos, w.Position) / 10f);
-                        
-                        // Alignement 
-                        Vector2 dirToNext = (w.Position - currentTargetPos).normalized;
-                        float alignment = Vector2.Dot(currentVelocity, dirToNext); // 1 = aligné, -1 = opposé
-                        float alignScore = Mathf.Max(0f, alignment); // on ignore les directions opposées
-
-                        // Score global pondéré 
-                        // pondération : 60% inertie (alignement), 40% distance
-                        return alignScore * 0.6f + distScore * 0.4f;
-                    })
-                    .FirstOrDefault();
-            }
-                
+            
             if (lastWayPoint != null)
                 distanceToLastTarget = Vector2.Distance(myShip.Position, lastWayPoint.Position);
 

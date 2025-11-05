@@ -5,14 +5,23 @@ using UnityEngine;
 
 namespace Teams.ActarusController.Shahine
 {
-    public class UtilityAgent
+    public class UtilityAgent : MonoBehaviour
     {
-        private Blackboard _bb;
-        private List<UtilityAction> _actions = new();
+        [SerializeField] private Blackboard _bb;
+        [SerializeField] private List<UtilityAction> _actions = new List<UtilityAction>();
 
         public UtilityAgent(Blackboard bb)
         {
             _bb = bb;
+        }
+
+        public void Init(Blackboard bb)
+        {
+            _bb = bb;
+            foreach (UtilityAction action in _actions)
+            {
+                action.InitAction(_bb);
+            }
         }
 
         public void RegisterAction(UtilityAction action)

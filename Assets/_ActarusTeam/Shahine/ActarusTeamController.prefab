@@ -9,8 +9,11 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 995883328052245445}
-  - component: {fileID: 6962921054947994555}
   - component: {fileID: 3039252958360588374}
+  - component: {fileID: 9042134066439787902}
+  - component: {fileID: 5930348891407075199}
+  - component: {fileID: 7582206718974047589}
+  - component: {fileID: 3007747347993996359}
   m_Layer: 0
   m_Name: ActarusTeamController
   m_TagString: Untagged
@@ -33,18 +36,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &6962921054947994555
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7672329417856911656}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 6a012bad4f0141d69ed64c4bbd932090, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
 --- !u!114 &3039252958360588374
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -86,5 +77,69 @@ MonoBehaviour:
         byteData: 
         byteDataArray: 
       Version: 1.7.12
-  gizmoViewMode: 0
-  showBehaviorDesignerGizmo: 0
+  gizmoViewMode: 2
+  showBehaviorDesignerGizmo: 1
+--- !u!114 &9042134066439787902
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7672329417856911656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fad3aae7e25f18c41a54a16deb89f6bf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _blackboard: {fileID: 5930348891407075199}
+  _agent: {fileID: 7582206718974047589}
+--- !u!114 &5930348891407075199
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7672329417856911656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa476bca2783e9145a3ac2215813bd35, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  distanceToNextTarget: 0
+  distanceToTarget: 0
+  distanceToLastTarget: 0
+  energy: 0
+  timeLeft: 0
+  hasToDropMine: 0
+  hasToShoot: 0
+  hasToFireShockwave: 0
+  angleTolerance: 25
+--- !u!114 &7582206718974047589
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7672329417856911656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 91b9fc5fa2c34456b2bc7e6159fbfa29, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bb: {fileID: 5930348891407075199}
+  _actions:
+  - {fileID: 3007747347993996359}
+--- !u!114 &3007747347993996359
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7672329417856911656}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aeecb74cd78d4c29bb49e6d170a0709b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _bb: {fileID: 5930348891407075199}
+  borderValue: 0.6
