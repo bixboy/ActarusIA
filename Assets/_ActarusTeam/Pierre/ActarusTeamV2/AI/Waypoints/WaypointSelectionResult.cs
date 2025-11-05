@@ -4,24 +4,13 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// Encapsulates the outcome of a waypoint selection evaluation.
-    /// </summary>
+
     public readonly struct WaypointSelectionResult
     {
-        /// <summary>
-        /// Gets an empty selection result.
-        /// </summary>
+
         public static WaypointSelectionResult Empty { get; } =
             new WaypointSelectionResult(null, float.MinValue, float.PositiveInfinity, Array.Empty<WayPointView>());
-
-        /// <summary>
-        /// Initializes a new instance of the <see cref="WaypointSelectionResult"/> struct.
-        /// </summary>
-        /// <param name="target">The waypoint that should be targeted next.</param>
-        /// <param name="score">The associated evaluation score.</param>
-        /// <param name="eta">The estimated travel time to reach the waypoint.</param>
-        /// <param name="futureWaypoints">The predicted future waypoints to capture after the target.</param>
+        
         public WaypointSelectionResult(WayPointView target, float score, float eta, IReadOnlyList<WayPointView> futureWaypoints)
         {
             TargetWaypoint = target;
