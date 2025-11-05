@@ -22,7 +22,7 @@ namespace Teams.ActarusControllerV2.pierre
 
             if (Time.time < _nextEvaluationTime && _memorySystem.TryGetCachedTarget(out WayPointView cachedWaypoint, out float cachedEta, out float cachedScore, out IReadOnlyList<WayPointView> cachedPredictions))
             {
-                _debugDrawer.DrawSelection(self, cachedWaypoint, cachedEta, cachedScore);
+                _debugDrawer.DrawSelection(self, cachedWaypoint, cachedEta, cachedScore, cachedPredictions);
                 return new WaypointSelectionResult(cachedWaypoint, cachedScore, cachedEta, CreatePredictionSnapshot(cachedPredictions));
             }
 
@@ -42,7 +42,7 @@ namespace Teams.ActarusControllerV2.pierre
 
             _nextEvaluationTime = Time.time + AIConstants.EvaluationInterval;
 
-            _debugDrawer.DrawSelection(self, bestWaypoint, bestEta, bestScore);
+            _debugDrawer.DrawSelection(self, bestWaypoint, bestEta, bestScore, futureWaypoints);
             return new WaypointSelectionResult(bestWaypoint, bestScore, bestEta, CreatePredictionSnapshot(futureWaypoints));
         }
 

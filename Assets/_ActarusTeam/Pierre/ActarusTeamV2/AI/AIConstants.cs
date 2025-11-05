@@ -75,7 +75,13 @@ namespace Teams.ActarusControllerV2.pierre
         // Debug visuals
         public const float DebugSphereSize = 0.3f;
         public const float DebugTextSize = 0.8f;
+        public const float DebugPredictionSphereSize = 0.22f;
+        public const float DebugPredictionTextScale = 0.65f;
+        public const int DebugPredictionPreviewCount = 3;
         public static readonly Color DebugLineColor = new(0.2f, 0.9f, 0.2f, 0.8f);
         public static readonly Color DebugSphereColor = new(0.4f, 1f, 0.4f, 0.8f);
+        public static readonly Color DebugPredictionLineColor = new(0.2f, 0.55f, 1f, 0.7f);
+        public static readonly Color DebugPredictionSphereColor = new(0.35f, 0.7f, 1f, 0.75f);
+        public static readonly Color DebugPredictionTextColor = new(0.85f, 0.95f, 1f, 0.9f);
     }
 }
