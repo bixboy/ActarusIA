@@ -3,9 +3,6 @@ using UnityEngine;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    /// <summary>
-    /// Enumeration of the high-level behaviour states used by the AI.
-    /// </summary>
     public enum ShipState
     {
         Idle,
@@ -16,197 +13,223 @@ namespace Teams.ActarusControllerV2.pierre
         Evade
     }
 
-    /// <summary>
-    /// Provides a steering advisory service required by the decision system.
-    /// </summary>
     public interface IAvoidanceProvider
     {
-        /// <summary>
-        /// Computes an emergency evasion direction based on the current context.
-        /// </summary>
-        /// <param name="data">The game data.</param>
-        /// <returns>A normalized direction favouring evasion.</returns>
         Vector2 ComputeEmergencyEvadeDirection(GameData data);
     }
 
     /// <summary>
-    /// Evaluates the current state of the AI and updates the movement intentions.
+    /// Contexte évalué une seule fois par tick pour réduire la logique conditionnelle en double.
     /// </summary>
+    public readonly struct DecisionContext
+    {
+        public readonly bool HasThreat;
+        public readonly bool InPenalty;
+        public readonly bool LowEnergy;
+        public readonly bool HasWaypoint;
+        public readonly bool WaypointEnemyOwned;
+        public readonly bool EnemyVisible;
+
+        public DecisionContext(Blackboard bb, float retreatEnergyThreshold)
+        {
+            var self = bb.Self;
+            HasThreat = bb.HasImminentThreat;
+            InPenalty = self.HitPenaltyCountdown > 0f || self.StunPenaltyCountdown > 0f;
+            LowEnergy = self.Energy < retreatEnergyThreshold;
+            HasWaypoint = bb.TargetWaypoint != null;
+            WaypointEnemyOwned = HasWaypoint && bb.TargetWaypoint.Owner != self.Owner;
+            EnemyVisible = bb.EnemyVisible && bb.Enemy != null;
+        }
+    }
+
     public sealed class DecisionSystem
     {
+        // ───── Constants / tuning ─────
         private const float EvadeMinDuration = 0.35f;
         private const float CaptureSlowDistance = 1.2f;
-        private const float FirePredictionLeadTime = 0.65f;
         private const float RetreatEnergyThreshold = 0.18f;
         private const float MidEnergyThreshold = 0.55f;
+
+        // Prediction
+        private const float MinBulletSpeedFallback = 6f; // au cas où BulletView.Speed <= 0
+
+        // Evade
+        private const float EvadeBaseSpeedRatio = 0.75f;
+        private const float EvadeBurstSpeedRatio = 1.25f;
+        private const float EvadeBurstEnergyThreshold = 0.35f;
 
         private readonly Blackboard _blackboard;
         private readonly IAvoidanceProvider _avoidanceProvider;
 
-        /// <summary>
-        /// Initializes a new instance of the <see cref="DecisionSystem"/> class.
-        /// </summary>
-        /// <param name="blackboard">Shared blackboard instance.</param>
-        /// <param name="avoidanceProvider">Steering helper used for evasive decisions.</param>
         public DecisionSystem(Blackboard blackboard, IAvoidanceProvider avoidanceProvider)
         {
             _blackboard = blackboard;
             _avoidanceProvider = avoidanceProvider;
         }
 
-        /// <summary>
-        /// Updates the current state and desired movement based on perception data.
-        /// </summary>
-        /// <param name="data">The full game state.</param>
+        // ─────────────────────────────────────────
+        // Public entry
+        // ─────────────────────────────────────────
         public void UpdateDecision(GameData data)
         {
             if (_blackboard.Self == null)
-            {
                 return;
-            }
 
+            // Mouvement par défaut (réinitialisation légère)
             ResetDesiredMovement();
 
-            ShipState nextState = EvaluateState(data);
+            // Évalue le contexte une seule fois
+            var ctx = new DecisionContext(_blackboard, RetreatEnergyThreshold);
+
+            // Choix d’état
+            ShipState nextState = EvaluateState(ctx);
             if (nextState != _blackboard.CurrentState)
             {
                 _blackboard.CurrentState = nextState;
                 _blackboard.LastStateChangeTime = Time.time;
             }
 
-            ExecuteStateLogic(data);
+            // Exécution
+            ExecuteStateLogic(data, ctx);
         }
 
-        private void ResetDesiredMovement()
+        // ─────────────────────────────────────────
+        // State machine
+        // ─────────────────────────────────────────
+        private ShipState EvaluateState(DecisionContext ctx)
         {
-            if (_blackboard.Self.Velocity.sqrMagnitude > 0.01f)
-            {
-                _blackboard.DesiredDirection = _blackboard.Self.Velocity.normalized;
-            }
-            else
-            {
-                _blackboard.DesiredDirection = Blackboard.AngleToDir(_blackboard.Self.Orientation);
-            }
+            if (ctx.HasThreat && EvadeReady())
+                return ShipState.Evade;
 
-            _blackboard.DesiredSpeed = _blackboard.Self.SpeedMax * 0.5f;
-        }
-
-        private ShipState EvaluateState(GameData data)
-        {
-            if (_blackboard.HasImminentThreat)
-            {
-                if (_blackboard.CurrentState != ShipState.Evade || Time.time - _blackboard.LastStateChangeTime > EvadeMinDuration)
-                {
-                    return ShipState.Evade;
-                }
-            }
-
-            if (IsInPenalty(_blackboard.Self) || _blackboard.Self.Energy < RetreatEnergyThreshold)
-            {
+            if (ctx.InPenalty || ctx.LowEnergy)
                 return ShipState.Retreat;
-            }
 
-            if (_blackboard.TargetWaypoint != null && _blackboard.TargetWaypoint.Owner != _blackboard.Self.Owner)
-            {
+            if (ctx.WaypointEnemyOwned)
                 return ShipState.Capture;
-            }
 
-            if (_blackboard.EnemyVisible && _blackboard.Enemy != null)
-            {
+            if (ctx.EnemyVisible)
                 return ShipState.Attack;
-            }
 
-            if (_blackboard.TargetWaypoint != null)
-            {
+            if (ctx.HasWaypoint)
                 return ShipState.Orbit;
-            }
 
             return ShipState.Idle;
         }
 
-        private void ExecuteStateLogic(GameData data)
+        private void ExecuteStateLogic(GameData data, DecisionContext ctx)
         {
             switch (_blackboard.CurrentState)
             {
                 case ShipState.Capture:
-                    DoCaptureLogic();
+                    DoCaptureLogic(ctx);
                     break;
+
                 case ShipState.Attack:
                     DoAttackLogic();
                     break;
+
                 case ShipState.Retreat:
-                    DoRetreatLogic();
+                    DoRetreatLogic(ctx);
                     break;
+
                 case ShipState.Orbit:
                     DoOrbitLogic();
                     break;
+
                 case ShipState.Evade:
                     DoEvadeLogic(data);
                     break;
+
                 default:
                     DoIdleLogic();
                     break;
             }
         }
 
-        private void DoCaptureLogic()
+        // ─────────────────────────────────────────
+        // States
+        // ─────────────────────────────────────────
+        private void DoCaptureLogic(DecisionContext ctx)
         {
-            WayPointView waypoint = _blackboard.TargetWaypoint;
-            Vector2 targetPosition = waypoint != null
-                ? waypoint.Position
-                : _blackboard.Self.Position + Blackboard.AngleToDir(_blackboard.Self.Orientation);
+            // Vise le point
+            Vector2 selfPos = _blackboard.Self.Position;
+            Vector2 target = ctx.HasWaypoint
+                ? _blackboard.TargetWaypoint.Position
+                : selfPos + SafeDirFromOrientation(_blackboard.Self.Orientation);
 
-            Vector2 desired = targetPosition - _blackboard.Self.Position;
-            float distance = desired.magnitude;
-            if (distance > 0.001f)
+            Vector2 toCenter = target - selfPos;
+            Vector2 dir = NormalizeOrFallback(toCenter, SafeDirFromOrientation(_blackboard.Self.Orientation));
+
+            // Petit strafe si l’ennemi est visible (évite d’être une cible statique)
+            if (ctx.EnemyVisible)
             {
-                desired /= distance;
+                // 25% de tangente
+                Vector2 tangent = new(-dir.y, dir.x);
+                dir = (dir + 0.25f * tangent).normalized;
             }
 
-            float speedRatio = distance > CaptureSlowDistance
+            // Vitesse adaptative : plus proche → ralentit pour stabiliser la capture
+            float dist = toCenter.magnitude;
+            float speedRatio = dist > CaptureSlowDistance
                 ? 1.0f
-                : Mathf.Lerp(0.45f, 0.8f, Mathf.InverseLerp(0.15f, CaptureSlowDistance, distance));
+                : Mathf.Lerp(0.45f, 0.8f, Mathf.InverseLerp(0.15f, CaptureSlowDistance, dist));
 
-            _blackboard.DesiredDirection = desired;
-            _blackboard.DesiredSpeed = _blackboard.Self.SpeedMax * speedRatio;
+            SetMovement(dir, _blackboard.Self.SpeedMax * speedRatio);
 
-            _blackboard.ShouldShoot &= _blackboard.EnemyVisible;
-            _blackboard.ShouldDropMine &= _blackboard.EnemyVisible;
+            // Feu / mine uniquement si ennemi visible
+            _blackboard.ShouldShoot = ctx.EnemyVisible;
+            _blackboard.ShouldDropMine = ctx.EnemyVisible;
         }
 
         private void DoAttackLogic()
         {
-            Vector2 predicted = _blackboard.Enemy != null
-                ? _blackboard.Enemy.Position + _blackboard.Enemy.Velocity * FirePredictionLeadTime
-                : _blackboard.Self.Position + Blackboard.AngleToDir(_blackboard.Self.Orientation);
-
-            Vector2 desired = predicted - _blackboard.Self.Position;
-            float distance = desired.magnitude;
-            if (distance > 0.001f)
+            Vector2 dir;
+            if (_blackboard.Enemy != null)
             {
-                desired /= distance;
+                Vector2 predicted = PredictTarget(_blackboard.Self, _blackboard.Enemy);
+                dir = NormalizeOrFallback(predicted - _blackboard.Self.Position, SafeDirFromOrientation(_blackboard.Self.Orientation));
+            }
+            else
+            {
+                dir = SafeDirFromOrientation(_blackboard.Self.Orientation);
             }
 
-            _blackboard.DesiredDirection = desired;
-            _blackboard.DesiredSpeed = _blackboard.Self.SpeedMax;
+            SetMovement(dir, _blackboard.Self.SpeedMax);
+            _blackboard.ShouldShoot = true;         // on privilégie l’agression ici
+            // Laisse la logique de mine globale décider selon ton design,
+            // sinon : _blackboard.ShouldDropMine = false;
         }
 
-        private void DoRetreatLogic()
+        private void DoRetreatLogic(DecisionContext ctx)
         {
-            Vector2 desired = _blackboard.Enemy != null
-                ? (_blackboard.Self.Position - _blackboard.Enemy.Position)
-                : (-_blackboard.Self.Velocity);
+            Vector2 dir;
 
-            if (desired.sqrMagnitude < 0.001f)
+            if (_blackboard.Enemy != null)
             {
-                desired = Blackboard.AngleToDir(_blackboard.Self.Orientation + 180f);
+                // Fuite “duelle”
+                dir = NormalizeOrFallback(_blackboard.Self.Position - _blackboard.Enemy.Position,
+                                          SafeDirFromOrientation(_blackboard.Self.Orientation + 180f));
+            }
+            else if (ctx.HasWaypoint && _blackboard.TargetWaypoint.Owner != _blackboard.Self.Owner)
+            {
+                // Repli “tactique” : on se dirige vers un objectif utile (neutre/ennemi)
+                dir = NormalizeOrFallback(_blackboard.TargetWaypoint.Position - _blackboard.Self.Position,
+                                          SafeDirFromOrientation(_blackboard.Self.Orientation));
+            }
+            else
+            {
+                // Fallback : inverse de la vitesse ou orientation opposée
+                dir = (_blackboard.Self.Velocity.sqrMagnitude > 0.01f)
+                    ? _blackboard.Self.Velocity.normalized * -1f
+                    : SafeDirFromOrientation(_blackboard.Self.Orientation + 180f);
             }
 
-            _blackboard.DesiredDirection = desired.normalized;
-            _blackboard.DesiredSpeed = Mathf.Lerp(
+            float speed = Mathf.Lerp(
                 _blackboard.Self.SpeedMax * 0.35f,
                 _blackboard.Self.SpeedMax * 0.65f,
                 Mathf.Clamp01(_blackboard.Self.Energy / MidEnergyThreshold));
+
+            SetMovement(dir, speed);
 
             _blackboard.ShouldShoot = false;
             _blackboard.ShouldDropMine = false;
@@ -220,13 +243,13 @@ namespace Teams.ActarusControllerV2.pierre
 
             Vector2 radial = _blackboard.Self.Position - center;
             if (radial.sqrMagnitude < 0.0001f)
-            {
-                radial = Blackboard.AngleToDir(_blackboard.Self.Orientation);
-            }
+                radial = SafeDirFromOrientation(_blackboard.Self.Orientation);
 
             Vector2 tangent = new Vector2(-radial.y, radial.x).normalized;
-            _blackboard.DesiredDirection = tangent;
-            _blackboard.DesiredSpeed = _blackboard.Self.SpeedMax * 0.6f;
+
+            SetMovement(tangent, _blackboard.Self.SpeedMax * 0.6f);
+            // Optionnel : tirer uniquement si ennemi visible, sinon pas de feu
+            // _blackboard.ShouldShoot = _blackboard.EnemyVisible;
         }
 
         private void DoEvadeLogic(GameData data)
@@ -236,14 +259,15 @@ namespace Teams.ActarusControllerV2.pierre
                 : Vector2.zero;
 
             if (evadeDir.sqrMagnitude < 0.0001f)
-            {
-                evadeDir = Blackboard.AngleToDir(_blackboard.Self.Orientation + 90f);
-            }
+                evadeDir = SafeDirFromOrientation(_blackboard.Self.Orientation + 90f);
 
-            _blackboard.DesiredDirection = evadeDir.normalized;
-            _blackboard.DesiredSpeed = Mathf.Max(
-                _blackboard.Self.SpeedMax * 0.75f,
-                _blackboard.Self.Velocity.magnitude);
+            float speedRatio = (_blackboard.Self.Energy > EvadeBurstEnergyThreshold)
+                ? EvadeBurstSpeedRatio
+                : EvadeBaseSpeedRatio;
+
+            float speed = Mathf.Max(_blackboard.Self.SpeedMax * speedRatio, _blackboard.Self.Velocity.magnitude);
+
+            SetMovement(evadeDir.normalized, speed);
 
             _blackboard.ShouldShoot = false;
             _blackboard.ShouldDropMine = false;
@@ -251,17 +275,72 @@ namespace Teams.ActarusControllerV2.pierre
 
         private void DoIdleLogic()
         {
-            if (_blackboard.Self.Velocity.sqrMagnitude > 0.01f)
-            {
-                _blackboard.DesiredDirection = _blackboard.Self.Velocity.normalized;
-            }
-            else
-            {
-                _blackboard.DesiredDirection = Blackboard.AngleToDir(_blackboard.Self.Orientation);
-            }
+            Vector2 dir = (_blackboard.Self.Velocity.sqrMagnitude > 0.01f)
+                ? _blackboard.Self.Velocity.normalized
+                : SafeDirFromOrientation(_blackboard.Self.Orientation);
 
-            _blackboard.DesiredSpeed = _blackboard.Self.SpeedMax * 0.45f;
+            SetMovement(dir, _blackboard.Self.SpeedMax * 0.45f);
+
+            _blackboard.ShouldShoot = false;
             _blackboard.ShouldDropMine = false;
+        }
+
+        // ─────────────────────────────────────────
+        // Helpers
+        // ─────────────────────────────────────────
+        private void ResetDesiredMovement()
+        {
+            Vector2 dir = (_blackboard.Self.Velocity.sqrMagnitude > 0.01f)
+                ? _blackboard.Self.Velocity.normalized
+                : SafeDirFromOrientation(_blackboard.Self.Orientation);
+
+            SetMovement(dir, _blackboard.Self.SpeedMax * 0.5f);
+            _blackboard.ShouldShoot = false;
+            _blackboard.ShouldDropMine = false;
+        }
+
+        private bool EvadeReady()
+        {
+            return _blackboard.CurrentState != ShipState.Evade
+                   || Time.time - _blackboard.LastStateChangeTime > EvadeMinDuration;
+        }
+
+        private void SetMovementInstance(Vector2 direction, float speed)
+        {
+            _blackboard.DesiredDirection = (direction.sqrMagnitude > 1.0001f) ? direction.normalized : direction;
+            _blackboard.DesiredSpeed = Mathf.Max(0f, speed);
+        }
+
+        // surcharge interne pour garder l’API courte
+        private void SetMovement(Vector2 direction, float speed)
+        {
+            SetMovementInstance(direction, speed);
+        }
+
+        private static Vector2 SafeDirFromOrientation(float orientationDeg)
+        {
+            float r = orientationDeg * Mathf.Deg2Rad;
+            return new Vector2(Mathf.Cos(r), Mathf.Sin(r));
+        }
+
+        private static Vector2 NormalizeOrFallback(Vector2 v, Vector2 fallback)
+        {
+            if (v.sqrMagnitude > 0.0001f) return v.normalized;
+            return (fallback.sqrMagnitude > 0.0001f) ? fallback.normalized : Vector2.right;
+        }
+
+        /// <summary>
+        /// Prédiction de tir basée sur la distance et la vitesse du projectile.
+        /// </summary>
+        private static Vector2 PredictTarget(SpaceShipView self, SpaceShipView enemy)
+        {
+            Vector2 toEnemy = enemy.Position - self.Position;
+            float distance = toEnemy.magnitude;
+            float bulletSpeed = BulletView.Speed;
+            if (bulletSpeed <= 0.01f) bulletSpeed = MinBulletSpeedFallback;
+
+            float leadTime = distance / bulletSpeed;
+            return enemy.Position + enemy.Velocity * leadTime;
         }
 
         private static bool IsInPenalty(SpaceShipView self)
