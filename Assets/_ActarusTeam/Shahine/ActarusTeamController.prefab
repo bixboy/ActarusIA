@@ -9,7 +9,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 995883328052245445}
-  - component: {fileID: 3039252958360588374}
   - component: {fileID: 9042134066439787902}
   - component: {fileID: 5930348891407075199}
   - component: {fileID: 7582206718974047589}
@@ -36,49 +35,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &3039252958360588374
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7672329417856911656}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 8d7b55c7ecdb49a4a89fa5e6f9022861, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  startWhenEnabled: 1
-  asynchronousLoad: 0
-  pauseWhenDisabled: 0
-  restartWhenComplete: 0
-  logTaskChanges: 0
-  group: 0
-  resetValuesOnRestart: 0
-  externalBehavior: {fileID: 0}
-  mBehaviorSource:
-    behaviorName: Behavior
-    behaviorDescription: 
-    mTaskData:
-      types: []
-      parentIndex: 
-      startIndex: 
-      variableStartIndex: 
-      JSONSerialization: '{"EntryTask":{"Type":"BehaviorDesigner.Runtime.Tasks.EntryTask","NodeData":{"Offset":"(315.5,30)"},"ID":0,"Name":"Entry","Instant":true},"RootTask":{"Type":"BehaviorDesigner.Runtime.Tasks.Repeater","NodeData":{"Offset":"(1,129)"},"ID":1,"Name":"Repeater","Instant":true,"SharedIntcount":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"","Int32mValue":0},"SharedBoolrepeatForever":{"Type":"BehaviorDesigner.Runtime.SharedBool","Name":"","BooleanmValue":true},"SharedBoolendOnFailure":{"Type":"BehaviorDesigner.Runtime.SharedBool","Name":"","BooleanmValue":false},"Children":[{"Type":"BehaviorDesigner.Runtime.Tasks.Sequence","NodeData":{"Offset":"(3,137)"},"ID":2,"Name":"Sequence","Instant":true,"AbortTypeabortType":"None","Children":[{"Type":"IIM.ModifyInt","NodeData":{"Offset":"(-260,115)"},"ID":3,"Name":"Modify
-        Int","Instant":true,"SharedIntvariable":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"Test","IsShared":true,"Int32mValue":0},"OPERATORop":"ADD","SharedIntvalue":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"","Int32mValue":1}},{"Type":"IIM.ModifyInt","NodeData":{"Offset":"(-121,124)"},"ID":4,"Name":"Modify
-        Int","Instant":true,"SharedIntvariable":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"","Int32mValue":0},"OPERATORop":"MODULO","SharedIntvalue":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"","Int32mValue":3}},{"Type":"BehaviorDesigner.Runtime.Tasks.Wait","NodeData":{"Offset":"(21,117)"},"ID":5,"Name":"Wait","Instant":true,"SharedFloatwaitTime":{"Type":"BehaviorDesigner.Runtime.SharedFloat","Name":"","SinglemValue":0.5},"SharedBoolrandomWait":{"Type":"BehaviorDesigner.Runtime.SharedBool","Name":"","BooleanmValue":false},"SharedFloatrandomWaitMin":{"Type":"BehaviorDesigner.Runtime.SharedFloat","Name":"","SinglemValue":1},"SharedFloatrandomWaitMax":{"Type":"BehaviorDesigner.Runtime.SharedFloat","Name":"","SinglemValue":1}},{"Type":"IIM.CompareInt","NodeData":{"Offset":"(160,120)"},"ID":6,"Name":"Compare
-        Int","Instant":true,"SharedIntvariable":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"Test","IsShared":true,"Int32mValue":0},"OPERATORop":"EQUAL","SharedIntcompareTo":{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"","Int32mValue":0}}]}]},"Variables":[{"Type":"BehaviorDesigner.Runtime.SharedInt","Name":"Test","IsShared":true,"Int32mValue":0}]}'
-      fieldSerializationData:
-        typeName: []
-        fieldNameHash: 
-        startIndex: 
-        dataPosition: 
-        unityObjects: []
-        byteData: 
-        byteDataArray: 
-      Version: 1.7.12
-  gizmoViewMode: 2
-  showBehaviorDesignerGizmo: 1
 --- !u!114 &9042134066439787902
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -113,7 +69,7 @@ MonoBehaviour:
   hasToDropMine: 0
   hasToShoot: 0
   hasToFireShockwave: 0
-  angleTolerance: 25
+  angleTolerance: 10
 --- !u!114 &7582206718974047589
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -142,4 +98,64 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   _bb: {fileID: 5930348891407075199}
+  _scorers:
+  - inputType: 0
+    inputMin: 0
+    inputMax: 10
+    scoreMin: 0
+    scoreMax: 1
+    scoreCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 2
+        outSlope: 2
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 0
+  - inputType: 1
+    inputMin: 0
+    inputMax: 1
+    scoreMin: 0
+    scoreMax: 1
+    scoreCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 2
+        outSlope: 2
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 0
   borderValue: 0.6
+  breakDistance: 2
