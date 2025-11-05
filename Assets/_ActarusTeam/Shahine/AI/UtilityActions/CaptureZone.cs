@@ -8,13 +8,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         // --- Etat de détour (persistant sur quelques frames) ---
         private bool _isDetouring;
         private Vector2 _detourPoint;
-
-        private const float SlowRadius          = 1.2f; // commencer à calmer les gaz avant la balise
-        private const float BrakeDistance       = 0.6f; // freinage final (tu l'avais déjà)
-        private const float DetourReachRadius   = 0.35f; // rayon pour considérer le point d’évitement atteint
-        private const float AsteroidMargin      = 0.25f; // marge autour du radius
-        private const float SpeedBonusMax       = 0.4f;  // marge ajoutée à haute vitesse
-
+        
         private bool _mineDroppedForThisWaypoint = false;
         public CaptureZone(Blackboard bb) : base(bb) { }
 
@@ -39,13 +33,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             if (_bb.targetWaypoint == null)
                 return input;
 
-            // Calcul d'orientation inertielle
-            float targetOrient = AimingHelpers.ComputeSteeringOrient(
-                _bb.myShip,
-                _bb.targetWaypoint.Position,
-                1.1f
-            );
-
+            float targetOrient = RotateShipToTarget(_bb.targetWaypoint.Position);
             input.targetOrientation = targetOrient;
 
             float angleDiff = Mathf.Abs(Mathf.DeltaAngle(_bb.myShip.Orientation, targetOrient));
@@ -56,26 +44,24 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             else
                 input.thrust = 0f;
 
-            if (_bb.distanceToTarget < _bb.targetWaypoint.Radius + 1f)
-                input.thrust = Mathf.Lerp(input.thrust, 0f, 0.5f);
-
-            
-            if (_bb.distanceToLastTarget - _bb.targetWaypoint.Radius <= _bb.myShip.Radius / 2 && _bb.lastWayPoint != null) // au centre environ
+            // Freinage
+            if (_bb.distanceToTarget < _bb.targetWaypoint.Radius + 0.6f)
             {
-                // On vérifie qu'on n’a pas déjà posé une mine ici
-                if (!_mineDroppedForThisWaypoint && _bb.myShip.Energy >= _bb.myShip.MineEnergyCost)
-                {
-                    input.dropMine = true; // 🚀 Dépose une mine
-                    _mineDroppedForThisWaypoint = true; // évite le spam
-                }
-            }
-            else
-            {
-                // Si on s’éloigne de la balise, reset pour la suivante
-                _mineDroppedForThisWaypoint = false;
+                input.thrust = 0f;
+                if (_bb.nextWayPoint != null)
+                    input.targetOrientation = RotateShipToTarget(_bb.nextWayPoint.Position);
             }
             
             return input;
+        }
+
+        public float RotateShipToTarget(Vector2 targetPosition)
+        {
+            return AimingHelpers.ComputeSteeringOrient(
+                _bb.myShip,
+                targetPosition,
+                1.1f
+            );
         }
     }
 }
