@@ -8,8 +8,7 @@ namespace Teams.ActarusControllerV2.pierre
     public readonly struct WaypointSelectionResult
     {
 
-        public static WaypointSelectionResult Empty { get; } =
-            new WaypointSelectionResult(null, float.MinValue, float.PositiveInfinity, Array.Empty<WayPointView>());
+        public static WaypointSelectionResult Empty { get; } = new (null, float.MinValue, float.PositiveInfinity, Array.Empty<WayPointView>());
         
         public WaypointSelectionResult(WayPointView target, float score, float eta, IReadOnlyList<WayPointView> futureWaypoints)
         {

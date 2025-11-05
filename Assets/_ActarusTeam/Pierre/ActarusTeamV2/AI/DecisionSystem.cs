@@ -15,12 +15,7 @@ namespace Teams.ActarusControllerV2.pierre
 
     public readonly struct DecisionContext
     {
-        public DecisionContext(
-            Blackboard bb,
-            GameData data,
-            in WaypointSelectionResult selection,
-            float retreatEnergyThreshold,
-            float endgameTime)
+        public DecisionContext(Blackboard bb, GameData data, in WaypointSelectionResult selection, float retreatEnergyThreshold, float endgameTime)
         {
             Blackboard = bb;
             Self = bb.Self;
@@ -150,6 +145,13 @@ namespace Teams.ActarusControllerV2.pierre
 
             TrackEnemyBehavior(data);
             var ctx = new DecisionContext(_bb, data, selection, RetreatEnergyThreshold, EndgameTime);
+            
+            if (true)
+            {
+                _bb.CurrentState = ShipState.Capture;
+                ApplyMotion(ctx, ShipState.Capture);
+                return ShipState.Capture;
+            }
 
             ShipState next = ShipState.Idle;
             for (int i = 0; i < _rules.Length; i++)
