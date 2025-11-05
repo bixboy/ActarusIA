@@ -17,30 +17,15 @@ namespace Teams.ActarusControllerV2.pierre
             EstimatedTimeToTarget = eta;
             FutureWaypoints = futureWaypoints ?? Array.Empty<WayPointView>();
         }
-
-        /// <summary>
-        /// Gets the primary waypoint to capture next.
-        /// </summary>
+        
         public WayPointView TargetWaypoint { get; }
-
-        /// <summary>
-        /// Gets the evaluation score associated with the target waypoint.
-        /// </summary>
+        
         public float Score { get; }
-
-        /// <summary>
-        /// Gets the estimated time required to reach the target waypoint.
-        /// </summary>
+        
         public float EstimatedTimeToTarget { get; }
-
-        /// <summary>
-        /// Gets the predicted follow-up waypoints that the ship should aim for afterwards.
-        /// </summary>
+        
         public IReadOnlyList<WayPointView> FutureWaypoints { get; }
-
-        /// <summary>
-        /// Gets a value indicating whether the selection contains a valid target.
-        /// </summary>
+        
         public bool HasTarget => TargetWaypoint != null;
     }
 }

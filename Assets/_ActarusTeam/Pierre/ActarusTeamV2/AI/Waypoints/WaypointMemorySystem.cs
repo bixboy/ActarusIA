@@ -39,11 +39,7 @@ namespace Teams.ActarusControllerV2.pierre
 
         public float TargetConfidence => _targetConfidence;
 
-        public WaypointSelectionResult Decide(
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            Dictionary<WayPointView, float> rawScores,
-            BehaviorProfile profile,
-            WaypointStrategicPlanner.StrategicPlanResult plan)
+        public WaypointSelectionResult Decide(Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> rawScores, BehaviorProfile profile, WaypointStrategicPlanner.StrategicPlanResult plan)
         {
             if (metrics == null || rawScores == null || rawScores.Count == 0)
             {
@@ -137,6 +133,7 @@ namespace Teams.ActarusControllerV2.pierre
                 float smoothed = Mathf.Lerp(previous, value, smoothing);
                 _smoothedScores[waypointIndex] = smoothed;
                 delta = Mathf.Abs(smoothed - previous);
+                
                 return smoothed;
             }
 

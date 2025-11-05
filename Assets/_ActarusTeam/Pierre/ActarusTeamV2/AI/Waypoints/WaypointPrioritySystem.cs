@@ -25,6 +25,7 @@ namespace Teams.ActarusControllerV2.pierre
 
             ScoreboardSnapshot scoreboard = CaptureScoreboard(self, data);
             int environmentSignature = ComputeEnvironmentSignature(data, scoreboard);
+            
             BehaviorProfile profile = BehaviorProfiles.Select(scoreboard.MyScore, scoreboard.BestOpponentScore, scoreboard.WaypointCount);
             bool profileChanged = profile.Id != _lastProfileId;
             bool environmentChanged = environmentSignature != _lastEnvironmentSignature || profileChanged;
@@ -43,9 +44,11 @@ namespace Teams.ActarusControllerV2.pierre
             if (metrics.Count == 0)
             {
                 WaypointSelectionResult empty = _memorySystem.Decide(null, null, profile, default);
+                
                 _lastEnvironmentSignature = environmentSignature;
                 _nextEvaluationTime = Time.time + AIConstants.EvaluationIntervalMin;
                 _lastProfileId = profile.Id;
+                
                 return empty;
             }
 
@@ -70,11 +73,7 @@ namespace Teams.ActarusControllerV2.pierre
             if (!selection.HasTarget)
                 return WaypointSelectionResult.Empty;
 
-            return new WaypointSelectionResult(
-                selection.TargetWaypoint,
-                selection.Score,
-                selection.EstimatedTimeToTarget,
-                CreatePredictionSnapshot(selection.FutureWaypoints));
+            return new WaypointSelectionResult(selection.TargetWaypoint, selection.Score, selection.EstimatedTimeToTarget, CreatePredictionSnapshot(selection.FutureWaypoints));
         }
 
         private static IReadOnlyList<WayPointView> CreatePredictionSnapshot(IReadOnlyList<WayPointView> predictions)
@@ -108,6 +107,7 @@ namespace Teams.ActarusControllerV2.pierre
             float interval = Mathf.Lerp(AIConstants.EvaluationIntervalMin, AIConstants.EvaluationIntervalMax, stability);
             float confidenceWeight = AIConstants.EvaluationConfidenceBias * Mathf.Clamp(profile.ConfidenceBias, 0.5f, 1.5f);
             float confidenceScale = Mathf.Lerp(1f - confidenceWeight, 1f + confidenceWeight, confidence);
+            
             interval *= confidenceScale;
 
             if (!hasTarget)

@@ -229,9 +229,7 @@ namespace Teams.ActarusControllerV2.pierre
                     reachable++;
                 }
 
-                _nodes[origin].Closeness = reachable > 0
-                    ? 1f / (AIConstants.StrategicClosenessEpsilon + (sum / reachable))
-                    : 0f;
+                _nodes[origin].Closeness = reachable > 0 ? 1f / (AIConstants.StrategicClosenessEpsilon + (sum / reachable)) : 0f;
             }
         }
 
@@ -248,6 +246,7 @@ namespace Teams.ActarusControllerV2.pierre
                 for (int aIdx = 0; aIdx < neighbours.Count; aIdx++)
                 {
                     int a = neighbours[aIdx].Index;
+                    
                     if (a <= i)
                         continue;
 
@@ -299,6 +298,7 @@ namespace Teams.ActarusControllerV2.pierre
             {
                 if (_nodes[i].Closeness > maxCloseness)
                     maxCloseness = _nodes[i].Closeness;
+                
                 if (_nodes[i].Domination > maxDomination)
                     maxDomination = _nodes[i].Domination;
             }
@@ -327,6 +327,7 @@ namespace Teams.ActarusControllerV2.pierre
 
             int count = _nodes.Count;
             EnsureScratchCapacity(count);
+            
             for (int i = 0; i < count; i++)
                 _searchVisited[i] = false;
 
@@ -345,6 +346,7 @@ namespace Teams.ActarusControllerV2.pierre
                 {
                     if (i == startIndex)
                         continue;
+                    
                     _candidateBuffer.Add(i);
                 }
 
@@ -353,7 +355,9 @@ namespace Teams.ActarusControllerV2.pierre
 
                 int limit = Mathf.Min(desiredCount, _candidateBuffer.Count);
                 for (int i = 0; i < limit; i++)
-                    output.Add(_nodes[_candidateBuffer[i]].Waypoint);
+                {
+                    output.Add(_nodes[_candidateBuffer[i]].Waypoint);   
+                }
 
                 return;
             }
@@ -363,13 +367,7 @@ namespace Teams.ActarusControllerV2.pierre
                 output.Add(_nodes[_bestPath[i]].Waypoint);
         }
 
-        private void Search(
-            int current,
-            int depth,
-            float accumulated,
-            int desiredDepth,
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            Dictionary<WayPointView, float> scores)
+        private void Search(int current, int depth, float accumulated, int desiredDepth, Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> scores)
         {
             if (depth >= desiredDepth)
             {
@@ -394,9 +392,14 @@ namespace Teams.ActarusControllerV2.pierre
 
                 float step = EvaluateStep(current, next, depth, metrics, scores);
                 if (_searchPath.Count > depth)
-                    _searchPath[depth] = next;
+                {
+                    _searchPath[depth] = next;    
+                }
+
                 else
-                    _searchPath.Add(next);
+                {
+                    _searchPath.Add(next);   
+                }
 
                 _searchVisited[next] = true;
                 Search(next, depth + 1, accumulated + step, desiredDepth, metrics, scores);
@@ -415,20 +418,23 @@ namespace Teams.ActarusControllerV2.pierre
             {
                 _bestPath.Clear();
                 for (int i = 0; i < depth; i++)
-                    _bestPath.Add(_searchPath[i]);
+                {
+                    _bestPath.Add(_searchPath[i]);   
+                }
+                
                 _bestScore = score;
             }
         }
 
-        private void BuildCandidates(
-            int index,
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            Dictionary<WayPointView, float> scores)
+        private void BuildCandidates(int index, Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> scores)
         {
             _candidateBuffer.Clear();
             List<Neighbour> neighbours = _nodes[index].Neighbours;
+
             for (int i = 0; i < neighbours.Count; i++)
-                _candidateBuffer.Add(neighbours[i].Index);
+            {
+                _candidateBuffer.Add(neighbours[i].Index);   
+            }
 
             if (_candidateBuffer.Count == 0)
             {
@@ -436,6 +442,7 @@ namespace Teams.ActarusControllerV2.pierre
                 {
                     if (i == index)
                         continue;
+                    
                     _candidateBuffer.Add(i);
                 }
             }
@@ -463,9 +470,7 @@ namespace Teams.ActarusControllerV2.pierre
 
                 if (bestIndex != i)
                 {
-                    int tmp = candidates[i];
-                    candidates[i] = candidates[bestIndex];
-                    candidates[bestIndex] = tmp;
+                    (candidates[i], candidates[bestIndex]) = (candidates[bestIndex], candidates[i]);
                 }
             }
         }
@@ -490,12 +495,7 @@ namespace Teams.ActarusControllerV2.pierre
             return value;
         }
 
-        private float EvaluateStep(
-            int from,
-            int to,
-            int depth,
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            Dictionary<WayPointView, float> scores)
+        private float EvaluateStep(int from, int to, int depth, Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> scores)
         {
             float heuristic = EvaluateHeuristic(to, metrics, scores);
             float distance = Vector2.Distance(_nodes[from].Position, _nodes[to].Position);
@@ -510,8 +510,10 @@ namespace Teams.ActarusControllerV2.pierre
 
             float discount = Mathf.Pow(AIConstants.StrategicFutureDiscount, depth);
             float score = heuristic * discount;
+            
             score += controlBias * AIConstants.StrategicAdjacencyWeight * discount;
             score -= travelPenalty * AIConstants.StrategicTravelPenalty;
+            
             return score;
         }
 
@@ -534,8 +536,10 @@ namespace Teams.ActarusControllerV2.pierre
         {
             if (_distanceScratch == null || _distanceScratch.Length < count)
                 _distanceScratch = new float[count];
+            
             if (_visitedScratch == null || _visitedScratch.Length < count)
                 _visitedScratch = new bool[count];
+            
             if (_searchVisited == null || _searchVisited.Length < count)
                 _searchVisited = new bool[count];
         }

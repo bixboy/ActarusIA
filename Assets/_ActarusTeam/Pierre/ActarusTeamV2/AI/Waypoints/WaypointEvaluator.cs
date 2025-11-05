@@ -8,10 +8,7 @@ namespace Teams.ActarusControllerV2.pierre
     {
         private readonly Dictionary<WayPointView, float> _scores = new();
 
-        public Dictionary<WayPointView, float> Evaluate(
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            BehaviorProfile profile,
-            float endgameUrgency)
+        public Dictionary<WayPointView, float> Evaluate(Dictionary<WayPointView, WaypointMetrics> metrics, BehaviorProfile profile, float endgameUrgency)
         {
             _scores.Clear();
 
@@ -38,15 +35,14 @@ namespace Teams.ActarusControllerV2.pierre
                     contestBias,
                     timeBias,
                     centralityBias);
+                
                 _scores[waypoint] = score;
             }
 
             return _scores;
         }
 
-        private float EvaluateWaypointScore(
-            WaypointMetrics metrics,
-            in BehaviorProfile profile,
+        private float EvaluateWaypointScore(WaypointMetrics metrics, in BehaviorProfile profile,
             float endgameUrgency,
             float scoreboardBias,
             float distanceBias,
@@ -73,9 +69,13 @@ namespace Teams.ActarusControllerV2.pierre
             score -= ComputeTurnPenalty(metrics);
 
             if (metrics.TravelTime < AIConstants.FastArrivalThreshold)
-                score += AIConstants.QuickCaptureBonus * profile.AggressionBias;
+            {
+                score += AIConstants.QuickCaptureBonus * profile.AggressionBias;    
+            }
             else if (metrics.TravelTime > AIConstants.SlowArrivalThreshold)
-                score -= AIConstants.SlowArrivalPenalty * profile.CautionBias;
+            {
+                score -= AIConstants.SlowArrivalPenalty * profile.CautionBias;   
+            }
 
             if (float.IsInfinity(metrics.EnemyEta))
             {
