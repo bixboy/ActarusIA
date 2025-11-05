@@ -1,3 +1,4 @@
+using System;
 using DoNotModify;
 using UnityEngine;
 
@@ -7,6 +8,8 @@ namespace Teams.ActarusController.Shahine
     {
         [SerializeField] protected Blackboard _bb;
         [SerializeField] protected Scorer[] _scorers;
+
+        
 
         public UtilityAction(Blackboard bb)
         {
@@ -34,7 +37,34 @@ namespace Teams.ActarusController.Shahine
         /// <summary>
         /// Méthode à redéfinir pour récupérer la donnée d’entrée propre à l’action.
         /// </summary>
-        protected abstract float GetInputValue(Scorer scorer);
+        protected virtual float GetInputValue(Scorer scorer)
+        {
+            if (_bb == null || _bb.targetWaypoint == null)
+                return 0f;
+
+            switch (scorer.inputType)
+            {
+                case ScorerInputType.Distance:
+                    return Vector2.Distance(_bb.myShip.Position, _bb.targetWaypoint.Position);
+
+                case ScorerInputType.Speed:
+                    return _bb.myShip.Velocity.magnitude;
+
+                case ScorerInputType.Energy:
+                    return _bb.myShip.Energy;
+
+                case ScorerInputType.Ownership:
+                    return _bb.targetWaypoint.Owner == -1 ? 1f : 0.5f;
+
+                case ScorerInputType.Proximity:
+                    float dist = _bb.distanceToTarget;
+                    float radius = _bb.targetWaypoint.Radius;
+                    return Mathf.Clamp01(1f - (dist / (radius + 0.25f)));
+
+                default:
+                    return 0f;
+            }
+        }
         
         public abstract InputData Execute();
     }
