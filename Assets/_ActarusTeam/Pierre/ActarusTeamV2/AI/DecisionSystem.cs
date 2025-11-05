@@ -72,9 +72,13 @@ namespace Teams.ActarusControllerV2.pierre
                         OwnedCount++;
                     
                     else if (wp.Owner < 0)
-                        NeutralCount++;
-                    else 
-                        EnemyCount++;
+                    {
+                        NeutralCount++;   
+                    }
+                    else
+                    {
+                        EnemyCount++;   
+                    }
                 }
                 TotalCount = OwnedCount + EnemyCount + NeutralCount;
             }
