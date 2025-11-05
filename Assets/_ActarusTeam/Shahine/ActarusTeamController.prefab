@@ -69,7 +69,8 @@ MonoBehaviour:
   hasToDropMine: 0
   hasToShoot: 0
   hasToFireShockwave: 0
-  angleTolerance: 10
+  angleTolerance: 25
+  UseOldWaypointSystemPriority: 0
 --- !u!114 &7582206718974047589
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -158,4 +159,6 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 0
   borderValue: 0.6
-  breakDistance: 2
+  breakDistance: 0
+  MinMaxOvershoot: {x: 0.6, y: 1.4}
+  proximityPenalty: 0.2
