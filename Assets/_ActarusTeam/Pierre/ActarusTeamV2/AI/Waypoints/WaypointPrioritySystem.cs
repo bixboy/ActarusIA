@@ -5,7 +5,6 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-
     public class WaypointPrioritySystem
     {
         private readonly WaypointMetricSystem _metricSystem = new();

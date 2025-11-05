@@ -9,16 +9,18 @@ namespace Teams.ActarusController.Shahine
     /// </summary>
     public sealed class ActarusControllerV1 : BaseSpaceShipController
     {
-        private Blackboard _blackboard;
-        private UtilityAgent _agent;
+        [SerializeField] private Blackboard _blackboard;
+
+        [SerializeField] private UtilityAgent _agent;
 
 
         /// <inheritdoc />
         public override void Initialize(SpaceShipView spaceship, GameData data)
         {
-            _blackboard = Blackboard.InitializeFromGameData(spaceship, data);
-            _agent = new UtilityAgent(_blackboard);
-            _agent.RegisterAction(new CaptureZone(_blackboard));
+            _blackboard = GetComponent<Blackboard>();
+            _blackboard.InitializeFromGameData(spaceship, data);
+            _agent = GetComponent<UtilityAgent>();
+            _agent.Init(_blackboard);
         }
 
         /// <inheritdoc />
