@@ -53,6 +53,7 @@ namespace Teams.ActarusControllerV1.pierre
         /// </summary>
         public bool ShouldShockwave { get; set; }
 
+
         /// <summary>
         /// Gets or sets the desired direction for the spaceship velocity.
         /// </summary>
@@ -95,8 +96,7 @@ namespace Teams.ActarusControllerV1.pierre
         /// <summary>
         /// Initializes a new instance of the <see cref="Blackboard"/> class.
         /// </summary>
-        public Blackboard()
-            : this(null)
+        public Blackboard() : this(null)
         {
         }
 

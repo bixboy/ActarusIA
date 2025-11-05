@@ -6,7 +6,7 @@ namespace Teams.ActarusControllerV2.pierre
     /// <summary>
     /// Describes a steering system capable of computing thrust and orientation commands.
     /// </summary>
-    public interface ISteeringSystem : IAvoidanceProvider
+    public interface ISteeringSystem 
     {
         /// <summary>
         /// Updates the steering forces based on the current intentions.

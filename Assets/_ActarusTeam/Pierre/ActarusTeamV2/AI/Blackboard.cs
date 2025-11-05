@@ -52,6 +52,40 @@ namespace Teams.ActarusControllerV2.pierre
         /// Gets or sets the raw intent for triggering the shockwave.
         /// </summary>
         public bool ShouldShockwave { get; set; }
+        
+        /// <summary>
+        /// Gets or sets a value indicating whether the ship should prioritise capturing a waypoint.
+        /// </summary>
+        public bool ShouldCapture { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the ship should engage the enemy.
+        /// </summary>
+        public bool ShouldEngageEnemy { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the ship should retreat.
+        /// </summary>
+        public bool ShouldRetreat { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the ship should perform an evasive manoeuvre.
+        /// </summary>
+        public bool ShouldEvade { get; set; }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether the ship should orbit a friendly waypoint.
+        /// </summary>
+        public bool ShouldOrbit { get; set; }
+        
+        // 0 = défensif, 1 = agressif
+        public float EnemyAggressionIndex { get; set; }
+        
+        // % du temps passé à cap
+        public float EnemyCaptureFocus { get; set; }
+        
+        // point stratégique à garder
+        public WayPointView PivotPoint { get; set; }
 
         /// <summary>
         /// Gets or sets the desired direction for the spaceship velocity.
@@ -90,32 +124,27 @@ namespace Teams.ActarusControllerV2.pierre
             Steering = Vector2.zero;
             DesiredSpeed = 0f;
             LastStateChangeTime = 0f;
+            
+            ShouldCapture = false;
+            ShouldEngageEnemy = false;
+            ShouldRetreat = false;
+            ShouldEvade = false;
+            ShouldOrbit = false;
         }
 
         /// <summary>
         /// Initializes a new instance of the <see cref="Blackboard"/> class.
         /// </summary>
-        public Blackboard()
-            : this(null)
+        public Blackboard() : this(null)
         {
         }
-
-        /// <summary>
-        /// Converts an angle in degrees to a direction vector.
-        /// </summary>
-        /// <param name="degrees">Angle in degrees.</param>
-        /// <returns>Normalized direction vector pointing along the provided angle.</returns>
+        
         public static Vector2 AngleToDir(float degrees)
         {
             float radians = degrees * Mathf.Deg2Rad;
             return new Vector2(Mathf.Cos(radians), Mathf.Sin(radians));
         }
-
-        /// <summary>
-        /// Normalizes an angle to the [0, 360) range.
-        /// </summary>
-        /// <param name="angle">Angle in degrees.</param>
-        /// <returns>The normalized angle.</returns>
+        
         public static float NormalizeAngle(float angle)
         {
             angle = Mathf.Repeat(angle, 360f);

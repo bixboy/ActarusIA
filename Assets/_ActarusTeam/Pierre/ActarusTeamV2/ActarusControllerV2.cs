@@ -20,7 +20,7 @@ namespace Teams.ActarusControllerV2.pierre
             _blackboard = new Blackboard(spaceship);
             _steering = new SteeringSystem(_blackboard);
             _perception = new PerceptionSystem(_blackboard);
-            _decision = new DecisionSystem(_blackboard, _steering);
+            _decision = new DecisionSystem(_blackboard);
             _combat = new CombatSystem(_blackboard);
 
             _waypointSystem = new WaypointPrioritySystem();
