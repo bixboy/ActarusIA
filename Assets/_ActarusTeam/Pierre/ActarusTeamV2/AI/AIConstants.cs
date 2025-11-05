@@ -64,6 +64,7 @@ namespace Teams.ActarusControllerV2.pierre
         public const float ContestWeight = 0.3f;
         public const float OrientationWeight = 0.18f;
         public const float ApproachWeight = 0.12f;
+        public const float TurnPenaltyWeight = 0.6f;
         public const float EnemyPressurePenalty = 0.55f;
         public const float EnemyInterceptPenalty = 0.45f;
         public const float EndgameSwingWeight = 0.4f;
