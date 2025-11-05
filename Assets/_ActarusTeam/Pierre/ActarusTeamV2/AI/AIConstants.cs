@@ -10,6 +10,11 @@ namespace Teams.ActarusControllerV2.pierre
     {
         // Evaluation cadence
         public const float EvaluationInterval = 0.25f;
+        public const float EvaluationIntervalMin = 0.18f;
+        public const float EvaluationIntervalMax = 0.5f;
+        public const float EvaluationConfidenceBias = 0.3f;
+        public const float EnvironmentChangeIntervalMultiplier = 0.6f;
+        public const float EnvironmentSignatureTimeFactor = 0.25f;
 
         // Spatial normalisation factors
         public const float DistanceNormalization = 14f;
@@ -24,6 +29,11 @@ namespace Teams.ActarusControllerV2.pierre
         public const float ScoreMomentumWeight = 0.18f;
         public const float MemoryPenaltyMultiplier = 0.5f;
         public const float CurrentTargetBonus = 0.2f;
+        public const float VolatilitySmoothing = 0.35f;
+        public const float VolatilityNormalization = 0.65f;
+        public const float TargetConfidenceScoreNormalization = 1.6f;
+        public const float TargetConfidenceDecayTime = 2.4f;
+        public const float TargetConfidenceSmoothing = 0.25f;
 
         // Target switching rules
         public const float TargetSwitchBias = 0.22f;
