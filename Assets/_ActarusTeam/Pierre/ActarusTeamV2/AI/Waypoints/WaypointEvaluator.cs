@@ -4,74 +4,78 @@ using DoNotModify;
 
 namespace Teams.ActarusControllerV2.pierre
 {
-    public readonly struct WaypointEvaluationContext
-    {
-        public WaypointEvaluationContext(float deficitFactor, float aggressionBias, float cautionBias, float endgameUrgency)
-        {
-            DeficitFactor = deficitFactor;
-            AggressionBias = aggressionBias;
-            CautionBias = cautionBias;
-            EndgameUrgency = endgameUrgency;
-        }
-
-        public float DeficitFactor { get; }
-        public float AggressionBias { get; }
-        public float CautionBias { get; }
-        public float EndgameUrgency { get; }
-    }
-    
     public class WaypointEvaluator
     {
         private readonly Dictionary<WayPointView, float> _scores = new();
-        
+
         public Dictionary<WayPointView, float> Evaluate(
             Dictionary<WayPointView, WaypointMetrics> metrics,
-            WaypointEvaluationContext context)
+            BehaviorProfile profile,
+            float endgameUrgency)
         {
             _scores.Clear();
 
             if (metrics == null || metrics.Count == 0)
                 return _scores;
 
+            float deficitFactor = profile.DeficitFactor;
+            float scoreboardBias = Mathf.Lerp(0.85f, 1.35f, deficitFactor);
+            float distanceBias = Mathf.Lerp(1.15f, 0.85f, deficitFactor);
+            float safetyBias = Mathf.Lerp(1.3f, 0.75f, deficitFactor);
+            float contestBias = Mathf.Lerp(0.85f, 1.25f, deficitFactor);
+            float timeBias = Mathf.Lerp(1f, 1.2f, endgameUrgency);
+            float centralityBias = Mathf.Lerp(0.9f, 1.15f, endgameUrgency);
+
             foreach ((WayPointView waypoint, WaypointMetrics waypointMetrics) in metrics)
             {
-                float score = EvaluateWaypointScore(waypointMetrics, context);
+                float score = EvaluateWaypointScore(
+                    waypointMetrics,
+                    profile,
+                    endgameUrgency,
+                    scoreboardBias,
+                    distanceBias,
+                    safetyBias,
+                    contestBias,
+                    timeBias,
+                    centralityBias);
                 _scores[waypoint] = score;
             }
 
             return _scores;
         }
 
-        private float EvaluateWaypointScore(WaypointMetrics metrics, WaypointEvaluationContext context)
+        private float EvaluateWaypointScore(
+            WaypointMetrics metrics,
+            in BehaviorProfile profile,
+            float endgameUrgency,
+            float scoreboardBias,
+            float distanceBias,
+            float safetyBias,
+            float contestBias,
+            float timeBias,
+            float centralityBias)
         {
-            float scoreboardBias = Mathf.Lerp(0.85f, 1.35f, context.DeficitFactor);
-            float distanceBias = Mathf.Lerp(1.15f, 0.85f, context.DeficitFactor);
-            float safetyBias = Mathf.Lerp(1.3f, 0.75f, context.DeficitFactor);
-            float timeBias = Mathf.Lerp(1f, 1.2f, context.EndgameUrgency);
-            float centralityBias = Mathf.Lerp(0.9f, 1.15f, context.EndgameUrgency);
-            float contestBias = Mathf.Lerp(0.85f, 1.25f, context.DeficitFactor);
-
             float score = 0f;
             score += metrics.Control * AIConstants.ControlWeight * scoreboardBias;
             score += metrics.CaptureSwing * AIConstants.CaptureSwingWeight * scoreboardBias;
             score += metrics.DistanceFactor * AIConstants.DistanceWeight * distanceBias;
             score += metrics.Safety * AIConstants.SafetyWeight * safetyBias;
-            score += metrics.OpenArea * AIConstants.OpenAreaWeight * context.CautionBias;
+            score += metrics.OpenArea * AIConstants.OpenAreaWeight * profile.CautionBias;
             score += metrics.Centrality * AIConstants.CentralityWeight * centralityBias;
-            score += metrics.TravelFactor * AIConstants.TravelWeight * timeBias * context.AggressionBias;
-            score += metrics.ArrivalAdvantage * AIConstants.EnemyArrivalWeight * context.AggressionBias;
+            score += metrics.TravelFactor * AIConstants.TravelWeight * timeBias * profile.AggressionBias;
+            score += metrics.ArrivalAdvantage * AIConstants.EnemyArrivalWeight * profile.AggressionBias;
             score += metrics.Orientation * AIConstants.OrientationWeight;
             score += metrics.Approach * AIConstants.ApproachWeight;
 
-            score -= metrics.Danger * AIConstants.DangerPenaltyWeight * context.CautionBias;
-            score -= metrics.EnemyPressure * AIConstants.EnemyPressurePenalty * context.CautionBias;
-            score -= metrics.InterceptThreat * AIConstants.EnemyInterceptPenalty * context.CautionBias;
+            score -= metrics.Danger * AIConstants.DangerPenaltyWeight * profile.CautionBias;
+            score -= metrics.EnemyPressure * AIConstants.EnemyPressurePenalty * profile.CautionBias;
+            score -= metrics.InterceptThreat * AIConstants.EnemyInterceptPenalty * profile.CautionBias;
             score -= ComputeTurnPenalty(metrics);
 
             if (metrics.TravelTime < AIConstants.FastArrivalThreshold)
-                score += AIConstants.QuickCaptureBonus * context.AggressionBias;
+                score += AIConstants.QuickCaptureBonus * profile.AggressionBias;
             else if (metrics.TravelTime > AIConstants.SlowArrivalThreshold)
-                score -= AIConstants.SlowArrivalPenalty * context.CautionBias;
+                score -= AIConstants.SlowArrivalPenalty * profile.CautionBias;
 
             if (float.IsInfinity(metrics.EnemyEta))
             {
@@ -83,7 +87,7 @@ namespace Teams.ActarusControllerV2.pierre
                 score += contest * AIConstants.ContestWeight * contestBias;
             }
 
-            score += metrics.CaptureSwing * AIConstants.EndgameSwingWeight * Mathf.Lerp(0.8f, 1.3f, context.EndgameUrgency);
+            score += metrics.CaptureSwing * AIConstants.EndgameSwingWeight * Mathf.Lerp(0.8f, 1.3f, endgameUrgency);
 
             return score;
         }

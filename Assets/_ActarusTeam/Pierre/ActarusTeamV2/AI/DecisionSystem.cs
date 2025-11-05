@@ -15,105 +15,151 @@ namespace Teams.ActarusControllerV2.pierre
 
     public readonly struct DecisionContext
     {
-        public readonly SpaceShipView Self;
-        public readonly WayPointView Waypoint;
-
-        public readonly bool HasThreat;
-        public readonly bool InPenalty;
-        public readonly bool LowEnergy;
-
-        public readonly bool HasWaypoint;
-        public readonly bool WaypointFriendlyOwned;
-        public readonly bool WaypointNeutral;
-        public readonly bool WaypointEnemyOwned;
-        public readonly bool EnemyVisible;
-
-        public readonly int OwnedCount;
-        public readonly int EnemyCount;
-        public readonly int NeutralCount;
-        public readonly int TotalCount;
-
-        public readonly bool StrongLead;
-        public readonly bool NeedsMoreCapture;
-        public readonly bool HoldLead;
-        public readonly bool Endgame;
-
-        public readonly WayPointView Pivot;
-        public readonly float EnemyAggression;
-        public readonly float EnemyCaptureFocus;
-
-        public DecisionContext(Blackboard bb, GameData data,
-            float retreatEnergyThreshold, float holdRatio, float endgameTime)
+        public DecisionContext(
+            Blackboard bb,
+            GameData data,
+            in WaypointSelectionResult selection,
+            float retreatEnergyThreshold,
+            float endgameTime)
         {
+            Blackboard = bb;
             Self = bb.Self;
-            Waypoint = bb.TargetWaypoint;
+            Enemy = bb.Enemy;
+            Selection = selection;
+            Target = selection.TargetWaypoint ?? bb.TargetWaypoint;
 
             HasThreat = bb.HasImminentThreat;
-            InPenalty = Self.HitPenaltyCountdown > 0f || Self.StunPenaltyCountdown > 0f;
-            LowEnergy = Self.Energy < retreatEnergyThreshold;
-
-            HasWaypoint = Waypoint != null;
-            WaypointFriendlyOwned = HasWaypoint && Waypoint.Owner == Self.Owner;
-            WaypointNeutral = HasWaypoint && Waypoint.Owner < 0;
-            WaypointEnemyOwned = HasWaypoint && Waypoint.Owner >= 0 && Waypoint.Owner != Self.Owner;
-
+            InPenalty = Self != null && (Self.HitPenaltyCountdown > 0f || Self.StunPenaltyCountdown > 0f);
+            LowEnergy = Self != null && Self.Energy < retreatEnergyThreshold;
             EnemyVisible = bb.EnemyVisible && bb.Enemy != null;
 
-            OwnedCount = EnemyCount = NeutralCount = TotalCount = 0;
-
-            if (data?.WayPoints != null)
-            {
-                foreach (var wp in data.WayPoints)
-                {
-                    if (wp == null)
-                        continue;
-                    
-                    if (wp.Owner == Self.Owner) 
-                        OwnedCount++;
-                    
-                    else if (wp.Owner < 0)
-                    {
-                        NeutralCount++;   
-                    }
-                    else
-                    {
-                        EnemyCount++;   
-                    }
-                }
-                TotalCount = OwnedCount + EnemyCount + NeutralCount;
-            }
-
-            StrongLead = OwnedCount >= EnemyCount + 1;
-            NeedsMoreCapture = OwnedCount <= EnemyCount || NeutralCount > 0;
-            Endgame = data != null && data.timeLeft <= endgameTime;
-            HoldLead = StrongLead || Endgame;
+            CurrentState = bb.CurrentState;
+            TimeSinceStateChange = Time.time - bb.LastStateChangeTime;
 
             Pivot = bb.PivotPoint;
             EnemyAggression = bb.EnemyAggressionIndex;
             EnemyCaptureFocus = bb.EnemyCaptureFocus;
+
+            HasTarget = Target != null;
+            TargetFriendlyOwned = HasTarget && Self != null && Target.Owner == Self.Owner;
+            TargetNeutral = HasTarget && Target.Owner < 0;
+            TargetEnemyOwned = HasTarget && Self != null && Target.Owner >= 0 && Target.Owner != Self.Owner;
+            TargetContestable = TargetEnemyOwned || TargetNeutral;
+
+            OwnedCount = EnemyCount = NeutralCount = 0;
+            if (data?.WayPoints != null && Self != null)
+            {
+                foreach (WayPointView waypoint in data.WayPoints)
+                {
+                    if (waypoint == null)
+                        continue;
+
+                    if (waypoint.Owner == Self.Owner)
+                        OwnedCount++;
+                    else if (waypoint.Owner < 0)
+                        NeutralCount++;
+                    else
+                        EnemyCount++;
+                }
+            }
+
+            TotalCount = OwnedCount + EnemyCount + NeutralCount;
+            StrongLead = OwnedCount >= EnemyCount + 1;
+            NeedsCapture = OwnedCount <= EnemyCount || NeutralCount > 0;
+            Endgame = data != null && data.timeLeft <= endgameTime;
+            HoldLead = StrongLead || Endgame;
         }
+
+        public Blackboard Blackboard { get; }
+        public SpaceShipView Self { get; }
+        public SpaceShipView Enemy { get; }
+        public WayPointView Target { get; }
+        public WaypointSelectionResult Selection { get; }
+
+        public bool HasThreat { get; }
+        public bool InPenalty { get; }
+        public bool LowEnergy { get; }
+        public bool EnemyVisible { get; }
+
+        public bool HasTarget { get; }
+        public bool TargetFriendlyOwned { get; }
+        public bool TargetNeutral { get; }
+        public bool TargetEnemyOwned { get; }
+        public bool TargetContestable { get; }
+
+        public int OwnedCount { get; }
+        public int EnemyCount { get; }
+        public int NeutralCount { get; }
+        public int TotalCount { get; }
+
+        public bool StrongLead { get; }
+        public bool NeedsCapture { get; }
+        public bool HoldLead { get; }
+        public bool Endgame { get; }
+
+        public WayPointView Pivot { get; }
+        public float EnemyAggression { get; }
+        public float EnemyCaptureFocus { get; }
+        public ShipState CurrentState { get; }
+        public float TimeSinceStateChange { get; }
     }
 
     public sealed class DecisionSystem
     {
         private const float EvadeMinDuration = 0.35f;
         private const float RetreatEnergyThreshold = 0.18f;
-        private const float HoldRatio = 0.6f;
         private const float EndgameTime = 18f;
+        private const float CaptureSlowDistance = 1.1f;
+        private const float OrbitSpeedRatio = 0.60f;
+        private const float RetreatMinRatio = 0.35f;
+        private const float RetreatMaxRatio = 0.65f;
+        private const float AttackLeadTime = 0.55f;
 
         private readonly Blackboard _bb;
 
-        public DecisionSystem(Blackboard blackboard) => _bb = blackboard;
+        private delegate bool DecisionPredicate(in DecisionContext ctx);
 
-        public void UpdateDecision(GameData data)
+        private readonly (DecisionPredicate Cond, ShipState State)[] _rules;
+
+        public DecisionSystem(Blackboard blackboard)
         {
-            if (_bb.Self == null) return;
+            _bb = blackboard;
+            _rules = new (DecisionPredicate, ShipState)[]
+            {
+                (ShouldEvade, ShipState.Evade),
+                (ShouldRetreatEnergy, ShipState.Retreat),
+                (ShouldRetreatAggression, ShipState.Retreat),
+                (ShouldPivotAttack, ShipState.Attack),
+                (ShouldPivotOrbit, ShipState.Orbit),
+                (ShouldCapture, ShipState.Capture),
+                (ShouldAttackEnemyOwned, ShipState.Attack),
+                (ShouldAttackVisibleEnemy, ShipState.Attack),
+                (ShouldOrbitFriendly, ShipState.Orbit)
+            };
+        }
 
-            ResetIntentions();
+        public ShipState ChooseState(GameData data, in WaypointSelectionResult selection)
+        {
+            if (_bb.Self == null)
+            {
+                _bb.DesiredDirection = Vector2.zero;
+                _bb.DesiredSpeed = 0f;
+                _bb.CurrentState = ShipState.Idle;
+                return ShipState.Idle;
+            }
+
             TrackEnemyBehavior(data);
+            var ctx = new DecisionContext(_bb, data, selection, RetreatEnergyThreshold, EndgameTime);
 
-            var ctx = new DecisionContext(_bb, data, RetreatEnergyThreshold, HoldRatio, EndgameTime);
-            ShipState next = EvaluateState(ctx);
+            ShipState next = ShipState.Idle;
+            for (int i = 0; i < _rules.Length; i++)
+            {
+                if (_rules[i].Cond(ctx))
+                {
+                    next = _rules[i].State;
+                    break;
+                }
+            }
 
             if (next != _bb.CurrentState)
             {
@@ -121,69 +167,216 @@ namespace Teams.ActarusControllerV2.pierre
                 _bb.LastStateChangeTime = Time.time;
             }
 
-            Apply(ctx, next);
+            ApplyMotion(ctx, next);
+            return next;
         }
 
-        private ShipState EvaluateState(in DecisionContext ctx)
+        private static bool ShouldEvade(in DecisionContext ctx) =>
+            ctx.HasThreat && (ctx.CurrentState != ShipState.Evade || ctx.TimeSinceStateChange > EvadeMinDuration);
+
+        private static bool ShouldRetreatEnergy(in DecisionContext ctx) =>
+            ctx.InPenalty || ctx.LowEnergy;
+
+        private static bool ShouldRetreatAggression(in DecisionContext ctx) =>
+            ctx.EnemyVisible && ctx.EnemyAggression > 0.55f && !ctx.NeedsCapture;
+
+        private static bool ShouldPivotAttack(in DecisionContext ctx) =>
+            ctx.HoldLead && ctx.Pivot != null && ctx.EnemyVisible;
+
+        private static bool ShouldPivotOrbit(in DecisionContext ctx) =>
+            ctx.HoldLead && ctx.Pivot != null && !ctx.EnemyVisible;
+
+        private static bool ShouldCapture(in DecisionContext ctx) =>
+            ctx.NeedsCapture && ctx.TargetContestable;
+
+        private static bool ShouldAttackEnemyOwned(in DecisionContext ctx) =>
+            ctx.TargetEnemyOwned && ctx.EnemyAggression < 0.35f;
+
+        private static bool ShouldAttackVisibleEnemy(in DecisionContext ctx) =>
+            ctx.EnemyVisible;
+
+        private static bool ShouldOrbitFriendly(in DecisionContext ctx) =>
+            ctx.HasTarget && ctx.TargetFriendlyOwned;
+
+        private void ApplyMotion(in DecisionContext ctx, ShipState state)
         {
-            if (ctx.HasThreat && EvadeReady()) return ShipState.Evade;
-            if (ctx.InPenalty || ctx.LowEnergy) return ShipState.Retreat;
-
-            bool contest = ctx.WaypointEnemyOwned || ctx.WaypointNeutral;
-
-            if (ctx.EnemyAggression < 0.3f && ctx.WaypointEnemyOwned) 
-                return ShipState.Attack;
-
-            if (ctx.HoldLead && ctx.Pivot != null)
+            SpaceShipView self = ctx.Self;
+            if (self == null)
             {
-                if (_bb.TargetWaypoint != ctx.Pivot)
-                    _bb.TargetWaypoint = ctx.Pivot;
-
-                return ctx.EnemyVisible ? ShipState.Attack : ShipState.Orbit;
+                _bb.DesiredDirection = Vector2.zero;
+                _bb.DesiredSpeed = 0f;
+                return;
             }
 
-            if (ctx.NeedsMoreCapture && contest)
-                return ShipState.Capture;
+            Vector2 desiredDir = self.Velocity.sqrMagnitude > 0.01f
+                ? self.Velocity
+                : Blackboard.AngleToDir(self.Orientation);
+            float desiredSpeed = self.SpeedMax * 0.5f;
+
+            switch (state)
+            {
+                case ShipState.Evade:
+                    desiredDir = ComputeEvadeDirection(ctx);
+                    desiredSpeed = Mathf.Max(self.SpeedMax * 0.85f, self.Velocity.magnitude);
+                    break;
+
+                case ShipState.Retreat:
+                    desiredDir = ComputeRetreatDirection(ctx);
+                    float energyRatio = Mathf.Clamp01(self.Energy);
+                    desiredSpeed = Mathf.Lerp(self.SpeedMax * RetreatMinRatio, self.SpeedMax * RetreatMaxRatio, energyRatio);
+                    break;
+
+                case ShipState.Capture:
+                    if (ctx.Target != null)
+                    {
+                        desiredDir = DirectionTo(self.Position, ctx.Target.Position);
+                        float distance = Vector2.Distance(self.Position, ctx.Target.Position);
+                        float speedRatio = distance > CaptureSlowDistance
+                            ? 1f
+                            : Mathf.Lerp(0.45f, 0.8f, Mathf.InverseLerp(0.15f, CaptureSlowDistance, distance));
+                        desiredSpeed = self.SpeedMax * speedRatio;
+                    }
+                    break;
+
+                case ShipState.Orbit:
+                {
+                    WayPointView orbitTarget = ctx.Pivot ?? ctx.Target;
+                    if (ctx.Pivot != null && ctx.HoldLead)
+                        _bb.TargetWaypoint = ctx.Pivot;
+
+                    if (orbitTarget != null)
+                        desiredDir = OrbitDirection(self.Position, orbitTarget.Position);
+
+                    desiredSpeed = self.SpeedMax * OrbitSpeedRatio;
+                    break;
+                }
+
+                case ShipState.Attack:
+                    desiredDir = ComputeAttackDirection(ctx);
+                    if (ctx.Pivot != null && ctx.HoldLead)
+                        _bb.TargetWaypoint = ctx.Pivot;
+                    desiredSpeed = self.SpeedMax;
+                    break;
+
+                default:
+                    desiredSpeed = self.SpeedMax * 0.45f;
+                    break;
+            }
+
+            if (desiredDir.sqrMagnitude > 1e-4f)
+                desiredDir.Normalize();
+            else
+                desiredDir = Blackboard.AngleToDir(self.Orientation);
+
+            _bb.DesiredDirection = desiredDir;
+            _bb.DesiredSpeed = Mathf.Clamp(desiredSpeed, 0f, self.SpeedMax);
+        }
+
+        private static Vector2 ComputeEvadeDirection(in DecisionContext ctx)
+        {
+            SpaceShipView self = ctx.Self;
+            if (self == null)
+                return Vector2.zero;
 
             if (ctx.EnemyVisible)
             {
-                return ctx.EnemyAggression > 0.5f ? ShipState.Retreat : ShipState.Attack;
+                Vector2 away = self.Position - ctx.Enemy.Position;
+                if (away.sqrMagnitude > 1e-4f)
+                    return away;
             }
 
-            if (ctx.HasWaypoint) return contest ? ShipState.Capture : ShipState.Orbit;
+            if (self.Velocity.sqrMagnitude > 0.01f)
+                return -self.Velocity;
 
-            return ShipState.Idle;
+            return Blackboard.AngleToDir(self.Orientation + 180f);
         }
 
-        private void Apply(in DecisionContext ctx, ShipState state)
+        private static Vector2 ComputeRetreatDirection(in DecisionContext ctx)
         {
-            _bb.ShouldCapture = state == ShipState.Capture;
-            _bb.ShouldEngageEnemy = state == ShipState.Attack;
-            _bb.ShouldRetreat = state == ShipState.Retreat;
-            _bb.ShouldEvade = state == ShipState.Evade;
-            _bb.ShouldOrbit = state == ShipState.Orbit;
+            SpaceShipView self = ctx.Self;
+            if (self == null)
+                return Vector2.zero;
 
-            _bb.ShouldShoot = state == ShipState.Attack;
-            _bb.ShouldDropMine = state == ShipState.Retreat && ctx.EnemyAggression > 0.6f;
+            if (ctx.EnemyVisible)
+            {
+                Vector2 away = self.Position - ctx.Enemy.Position;
+                if (away.sqrMagnitude > 1e-4f)
+                    return away;
+            }
+
+            if (ctx.Target != null)
+            {
+                Vector2 awayTarget = self.Position - ctx.Target.Position;
+                if (awayTarget.sqrMagnitude > 1e-4f)
+                    return awayTarget;
+            }
+
+            if (self.Velocity.sqrMagnitude > 0.01f)
+                return -self.Velocity;
+
+            return Blackboard.AngleToDir(self.Orientation + 180f);
         }
 
-        private void ResetIntentions()
+        private static Vector2 ComputeAttackDirection(in DecisionContext ctx)
         {
-            _bb.ShouldCapture = _bb.ShouldEngageEnemy = _bb.ShouldRetreat =
-            _bb.ShouldEvade = _bb.ShouldOrbit = _bb.ShouldShoot = _bb.ShouldDropMine = false;
+            SpaceShipView self = ctx.Self;
+            if (self == null)
+                return Vector2.zero;
+
+            if (ctx.EnemyVisible)
+            {
+                Vector2 predicted = ctx.Enemy.Position + ctx.Enemy.Velocity * AttackLeadTime;
+                Vector2 toPredicted = predicted - self.Position;
+                if (toPredicted.sqrMagnitude > 1e-4f)
+                    return toPredicted;
+            }
+
+            if (ctx.Target != null)
+            {
+                Vector2 toTarget = ctx.Target.Position - self.Position;
+                if (toTarget.sqrMagnitude > 1e-4f)
+                    return toTarget;
+            }
+
+            if (ctx.Selection.FutureWaypoints.Count > 0)
+            {
+                WayPointView next = ctx.Selection.FutureWaypoints[0];
+                if (next != null)
+                {
+                    Vector2 toNext = next.Position - self.Position;
+                    if (toNext.sqrMagnitude > 1e-4f)
+                        return toNext;
+                }
+            }
+
+            return self.Velocity.sqrMagnitude > 0.01f ? self.Velocity : Blackboard.AngleToDir(self.Orientation);
         }
 
-        private bool EvadeReady() => _bb.CurrentState != ShipState.Evade || Time.time - _bb.LastStateChangeTime > EvadeMinDuration;
+        private static Vector2 OrbitDirection(Vector2 selfPosition, Vector2 center)
+        {
+            Vector2 radial = selfPosition - center;
+            if (radial.sqrMagnitude < 1e-6f)
+                return new Vector2(0f, 1f);
+
+            Vector2 tangent = new Vector2(-radial.y, radial.x);
+            return tangent;
+        }
+
+        private static Vector2 DirectionTo(Vector2 origin, Vector2 target)
+        {
+            Vector2 delta = target - origin;
+            return delta.sqrMagnitude > 1e-6f ? delta : Vector2.zero;
+        }
 
         private void TrackEnemyBehavior(GameData data)
         {
             if (_bb.EnemyVisible)
             {
-                _bb.EnemyAggressionIndex = Mathf.Lerp(_bb.EnemyAggressionIndex, 1f, 0.02f);   
+                _bb.EnemyAggressionIndex = Mathf.Lerp(_bb.EnemyAggressionIndex, 1f, 0.02f);
             }
             else
             {
-                _bb.EnemyAggressionIndex = Mathf.Lerp(_bb.EnemyAggressionIndex, 0f, 0.01f);   
+                _bb.EnemyAggressionIndex = Mathf.Lerp(_bb.EnemyAggressionIndex, 0f, 0.01f);
             }
         }
     }
