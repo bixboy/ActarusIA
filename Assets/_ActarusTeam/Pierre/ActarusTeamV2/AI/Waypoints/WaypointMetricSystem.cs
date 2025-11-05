@@ -169,13 +169,16 @@ namespace Teams.ActarusControllerV2.pierre
 
                     Vector2 direction = velocity.normalized;
                     Vector2 end = start + direction * speed * AIConstants.DangerPredictionHorizon;
+                    
                     float distanceToPath = AIUtility.DistancePointToSegment(position, start, end);
                     float bulletInfluence = 1f - Mathf.Clamp01(distanceToPath / AIConstants.ProjectileAvoidanceRadius);
+                    
                     if (bulletInfluence <= 0f)
                         continue;
 
                     float forwardDanger = Mathf.Clamp01(Vector2.Dot(direction, (position - start).normalized));
                     float weight = AIConstants.ProjectileDangerWeight;
+                    
                     weightedDanger += Mathf.Lerp(bulletInfluence * 0.5f, bulletInfluence, forwardDanger) * weight;
                     totalWeight += weight;
                 }
@@ -219,9 +222,7 @@ namespace Teams.ActarusControllerV2.pierre
                 return 0f;
 
             float distanceFactor = 1f - Mathf.Clamp01(distance / AIConstants.EnemyFireLaneReach);
-            float velocityFactor = enemy.Velocity.sqrMagnitude > 0.001f
-                ? Mathf.Clamp01((Vector2.Dot(enemy.Velocity.normalized, direction) + 1f) * 0.5f)
-                : 0.5f;
+            float velocityFactor = enemy.Velocity.sqrMagnitude > 0.001f ? Mathf.Clamp01((Vector2.Dot(enemy.Velocity.normalized, direction) + 1f) * 0.5f) : 0.5f;
 
             float lane = alignment * alignment * Mathf.Lerp(0.7f, 1.1f, velocityFactor) * distanceFactor;
             if (enemy.HasShot)
@@ -248,6 +249,7 @@ namespace Teams.ActarusControllerV2.pierre
 
                 float distanceToPath = AIUtility.DistancePointToSegment(asteroid.Position, origin, targetPosition);
                 float safeRadius = asteroid.Radius + AIConstants.AsteroidBuffer;
+                
                 if (safeRadius <= 0f)
                     continue;
 
@@ -326,9 +328,7 @@ namespace Teams.ActarusControllerV2.pierre
                 return 1f;
 
             desiredDirection.Normalize();
-            Vector2 currentDirection = self.Velocity.sqrMagnitude > 0.01f
-                ? self.Velocity.normalized
-                : (self.LookAt.sqrMagnitude > Mathf.Epsilon ? self.LookAt.normalized : desiredDirection);
+            Vector2 currentDirection = self.Velocity.sqrMagnitude > 0.01f ? self.Velocity.normalized : (self.LookAt.sqrMagnitude > Mathf.Epsilon ? self.LookAt.normalized : desiredDirection);
 
             float alignment = Mathf.Clamp01((Vector2.Dot(currentDirection, desiredDirection) + 1f) * 0.5f);
             return alignment;
@@ -351,8 +351,10 @@ namespace Teams.ActarusControllerV2.pierre
 
                 Vector2 toPosition = (position - ship.Position).normalized;
                 Vector2 forward = AIUtility.GetForwardVector(ship);
+                
                 float facing = Mathf.Clamp01((Vector2.Dot(forward, toPosition) + 1f) * 0.5f);
                 float distFactor = 1f - Mathf.Clamp01(distance / AIConstants.EnemyPressureRadius);
+                
                 pressure += Mathf.Lerp(distFactor * 0.7f, distFactor, facing);
             }
 
@@ -389,8 +391,10 @@ namespace Teams.ActarusControllerV2.pierre
                 float speedRatio = Mathf.Clamp01(ship.Velocity.magnitude / Mathf.Max(0.1f, ship.SpeedMax));
 
                 float threat = distanceFactor * Mathf.Lerp(facing, facing * 1.2f, speedRatio) * Mathf.Lerp(0.75f, 1.1f, velocityAlignment);
+                
                 if (ship.HasShot)
                     threat += 0.08f;
+                
                 if (ship.HasDroppedMine)
                     threat += 0.05f;
 
@@ -424,8 +428,10 @@ namespace Teams.ActarusControllerV2.pierre
             float energyMultiplier = Mathf.Lerp(0.75f, 1.1f, energy);
 
             float hazardPenalty = 1f + danger * 0.4f + (1f - openArea) * 0.25f + enemyPressure * 0.3f;
+            
             if (ship.HitPenaltyCountdown > 0f)
                 hazardPenalty += 0.3f;
+            
             if (ship.StunPenaltyCountdown > 0f)
                 hazardPenalty += 0.55f;
 
@@ -450,6 +456,7 @@ namespace Teams.ActarusControllerV2.pierre
                 float danger = DangerFactor(ship, data, waypoint.Position);
                 float openArea = OpenAreaFactor(ship, data, waypoint.Position);
                 float enemyPressure = EnemyPressureField(data, ship, waypoint.Position);
+                
                 float eta = EstimateTravelTime(ship, data, waypoint, danger, openArea, enemyPressure);
                 if (eta < bestEta)
                     bestEta = eta;
@@ -464,8 +471,10 @@ namespace Teams.ActarusControllerV2.pierre
                 return -1f;
 
             float travelFactor = 1f - Mathf.Clamp01(travelTime / AIConstants.TravelTimeNormalization);
+            
             if (travelTime < AIConstants.FastArrivalThreshold)
                 travelFactor += 0.15f;
+            
             else if (travelTime > AIConstants.SlowArrivalThreshold)
                 travelFactor -= 0.2f;
 

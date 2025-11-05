@@ -7,12 +7,7 @@ namespace Teams.ActarusControllerV2.pierre
     public class WaypointDebugDrawer
     {
         [System.Diagnostics.Conditional("UNITY_EDITOR")]
-        public void DrawSelection(
-            SpaceShipView self,
-            WayPointView waypoint,
-            float eta,
-            float score,
-            IReadOnlyList<WayPointView> predictedWaypoints)
+        public void DrawSelection(SpaceShipView self, WayPointView waypoint, float eta, float score, IReadOnlyList<WayPointView> predictedWaypoints)
         {
             if (self == null || waypoint == null)
                 return;
@@ -27,11 +22,7 @@ namespace Teams.ActarusControllerV2.pierre
             DrawPredictions(waypoint, predictedWaypoints, textOffset, lineDuration);
         }
 
-        private static void DrawPredictions(
-            WayPointView origin,
-            IReadOnlyList<WayPointView> predictedWaypoints,
-            float textOffset,
-            float lineDuration)
+        private static void DrawPredictions(WayPointView origin, IReadOnlyList<WayPointView> predictedWaypoints, float textOffset, float lineDuration)
         {
             if (origin == null || predictedWaypoints == null || predictedWaypoints.Count == 0)
                 return;
@@ -56,12 +47,7 @@ namespace Teams.ActarusControllerV2.pierre
                 DebugExtension.DrawSphere(nextWaypoint.Position, AIConstants.DebugPredictionSphereColor, AIConstants.DebugPredictionSphereSize);
 
                 Vector2 labelPosition = nextWaypoint.Position + Vector2.up * (textOffset + labelStride * (i + 1));
-                DebugExtension.DrawText(
-                    labelPosition,
-                    $"P{i + 1}",
-                    AIConstants.DebugPredictionTextColor,
-                    AIConstants.DebugTextSize * AIConstants.DebugPredictionTextScale,
-                    lineDuration);
+                DebugExtension.DrawText(labelPosition, $"P{i + 1}", AIConstants.DebugPredictionTextColor, AIConstants.DebugTextSize * AIConstants.DebugPredictionTextScale, lineDuration);
 
                 previousPosition = nextWaypoint.Position;
             }

@@ -36,7 +36,7 @@ namespace Teams.ActarusControllerV2.pierre
             _blackboard.TargetWaypointPredictions = selection.FutureWaypoints;
 
             _combat.UpdateWeapons(data);
-            _decision.UpdateDecision(data);
+            _decision.ChooseState(data, selection);
             _steering.UpdateSteering(data);
             _combat.CommitCommands();
 

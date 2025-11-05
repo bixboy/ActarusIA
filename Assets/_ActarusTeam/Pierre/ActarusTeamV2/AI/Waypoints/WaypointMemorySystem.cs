@@ -9,6 +9,8 @@ namespace Teams.ActarusControllerV2.pierre
         private readonly Dictionary<int, float> _lastVisited = new();
         private readonly Dictionary<int, float> _smoothedScores = new();
         private readonly Dictionary<int, float> _rawScores = new();
+        private readonly Dictionary<WayPointView, float> _evaluationBuffer = new();
+        private readonly List<KeyValuePair<WayPointView, float>> _sortedBuffer = new();
 
         private WayPointView _currentTarget;
         private float _currentTargetScore = float.MinValue;
@@ -21,24 +23,23 @@ namespace Teams.ActarusControllerV2.pierre
         private float _cachedBestScore;
         private float _cachedBestEta;
         private readonly List<WayPointView> _cachedFutureWaypoints = new(PredictionCount);
+        private WaypointSelectionResult _cachedSelection = WaypointSelectionResult.Empty;
 
-        public bool TryGetCachedTarget(out WayPointView waypoint, out float eta, out float score, out IReadOnlyList<WayPointView> futureWaypoints)
+        private float _scoreVolatility;
+        private float _stability = 0.5f;
+        private float _targetConfidence = 0.5f;
+
+        public bool TryGetCachedSelection(out WaypointSelectionResult selection)
         {
-            waypoint = _cachedBestWaypoint;
-            eta = _cachedBestEta;
-            score = _cachedBestScore;
-            futureWaypoints = _cachedFutureWaypoints;
-
-            return waypoint != null;
+            selection = _cachedSelection;
+            return selection.TargetWaypoint != null;
         }
 
-        public void ProcessEvaluation(
-            Dictionary<WayPointView, WaypointMetrics> metrics,
-            Dictionary<WayPointView, float> rawScores,
-            out WayPointView finalTarget,
-            out float finalScore,
-            out float finalEta,
-            out IReadOnlyList<WayPointView> futureWaypoints)
+        public float Stability => _stability;
+
+        public float TargetConfidence => _targetConfidence;
+
+        public WaypointSelectionResult Decide(Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> rawScores, BehaviorProfile profile, WaypointStrategicPlanner.StrategicPlanResult plan)
         {
             if (metrics == null || rawScores == null || rawScores.Count == 0)
             {
@@ -46,17 +47,19 @@ namespace Teams.ActarusControllerV2.pierre
                 _cachedBestScore = float.MinValue;
                 _cachedBestEta = float.PositiveInfinity;
                 _cachedFutureWaypoints.Clear();
-                finalTarget = null;
-                finalScore = float.MinValue;
-                finalEta = float.PositiveInfinity;
-                futureWaypoints = _cachedFutureWaypoints;
-                return;
+                _cachedSelection = WaypointSelectionResult.Empty;
+                UpdateStabilityMetrics(0, 0f);
+                UpdateTargetConfidenceMetric(profile);
+                return _cachedSelection;
             }
 
-            Dictionary<WayPointView, float> smoothedScores = new();
+            _evaluationBuffer.Clear();
+
             WayPointView evaluatedBest = null;
             float evaluatedBestScore = float.MinValue;
             float evaluatedBestEta = float.PositiveInfinity;
+            float smoothingDeltaSum = 0f;
+            int smoothingSamples = 0;
 
             foreach ((WayPointView waypoint, float rawScore) in rawScores)
             {
@@ -65,8 +68,10 @@ namespace Teams.ActarusControllerV2.pierre
 
                 float scoreWithMomentum = ApplyMomentum(waypointMetrics.Index, rawScore);
                 float adjustedScore = ApplyVisitMemory(waypointMetrics.Index, waypoint, scoreWithMomentum);
-                float smoothed = SmoothScore(waypointMetrics.Index, adjustedScore);
-                smoothedScores[waypoint] = smoothed;
+                float smoothed = SmoothScore(waypointMetrics.Index, adjustedScore, profile.ScoreSmoothing, out float smoothingDelta);
+                smoothingDeltaSum += smoothingDelta;
+                smoothingSamples++;
+                _evaluationBuffer[waypoint] = smoothed;
 
                 if (smoothed > evaluatedBestScore)
                 {
@@ -76,13 +81,17 @@ namespace Teams.ActarusControllerV2.pierre
                 }
             }
 
-            ApplyHysteresis(smoothedScores, evaluatedBest, evaluatedBestScore, evaluatedBestEta, metrics);
-            UpdateCachedPredictions(smoothedScores);
+            ApplyHysteresis(_evaluationBuffer, evaluatedBest, evaluatedBestScore, evaluatedBestEta, metrics);
+            UpdateCachedPredictions(_evaluationBuffer, metrics, plan);
 
-            finalTarget = _cachedBestWaypoint;
-            finalScore = _cachedBestScore;
-            finalEta = _cachedBestEta;
-            futureWaypoints = _cachedFutureWaypoints;
+            UpdateStabilityMetrics(smoothingSamples, smoothingDeltaSum);
+            UpdateTargetConfidenceMetric(profile);
+
+            _cachedSelection = _cachedBestWaypoint != null
+                ? new WaypointSelectionResult(_cachedBestWaypoint, _cachedBestScore, _cachedBestEta, _cachedFutureWaypoints)
+                : WaypointSelectionResult.Empty;
+
+            return _cachedSelection;
         }
 
         private float ApplyMomentum(int waypointIndex, float rawScore)
@@ -115,16 +124,21 @@ namespace Teams.ActarusControllerV2.pierre
             return adjustedScore;
         }
 
-        private float SmoothScore(int waypointIndex, float value)
+        private float SmoothScore(int waypointIndex, float value, float smoothing, out float delta)
         {
+            smoothing = Mathf.Clamp01(smoothing);
+
             if (_smoothedScores.TryGetValue(waypointIndex, out float previous))
             {
-                float smoothed = Mathf.Lerp(previous, value, AIConstants.ScoreSmoothing);
+                float smoothed = Mathf.Lerp(previous, value, smoothing);
                 _smoothedScores[waypointIndex] = smoothed;
+                delta = Mathf.Abs(smoothed - previous);
+                
                 return smoothed;
             }
 
             _smoothedScores[waypointIndex] = value;
+            delta = Mathf.Abs(value);
             return value;
         }
 
@@ -230,17 +244,28 @@ namespace Teams.ActarusControllerV2.pierre
             }
         }
 
-        private void UpdateCachedPredictions(Dictionary<WayPointView, float> scoredTargets)
+        private void UpdateCachedPredictions(
+            Dictionary<WayPointView, float> scoredTargets,
+            Dictionary<WayPointView, WaypointMetrics> metrics,
+            WaypointStrategicPlanner.StrategicPlanResult plan)
         {
             _cachedFutureWaypoints.Clear();
 
             if (scoredTargets == null || scoredTargets.Count == 0 || _cachedBestWaypoint == null)
                 return;
 
-            var sorted = new List<KeyValuePair<WayPointView, float>>(scoredTargets);
-            sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
+            if (plan.IsValid)
+                plan.FillFuturePath(_cachedBestWaypoint, PredictionCount, _cachedFutureWaypoints);
 
-            foreach ((WayPointView waypoint, float _) in sorted)
+            if (_cachedFutureWaypoints.Count >= PredictionCount)
+                return;
+
+            _sortedBuffer.Clear();
+            foreach (KeyValuePair<WayPointView, float> entry in scoredTargets)
+                _sortedBuffer.Add(entry);
+            _sortedBuffer.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+            foreach ((WayPointView waypoint, float _) in _sortedBuffer)
             {
                 if (waypoint == null || waypoint == _cachedBestWaypoint)
                     continue;
@@ -258,6 +283,35 @@ namespace Teams.ActarusControllerV2.pierre
 
             if (metrics.TryGetValue(waypoint, out WaypointMetrics waypointMetrics))
                 _lastVisited[waypointMetrics.Index] = Time.time;
+        }
+
+        private void UpdateStabilityMetrics(int sampleCount, float deltaSum)
+        {
+            float averageDelta = sampleCount > 0 ? deltaSum / sampleCount : 0f;
+            _scoreVolatility = Mathf.Lerp(_scoreVolatility, averageDelta, AIConstants.VolatilitySmoothing);
+
+            float normalization = Mathf.Max(AIConstants.VolatilityNormalization, 0.0001f);
+            float normalized = Mathf.Clamp01(_scoreVolatility / normalization);
+            _stability = 1f - normalized;
+        }
+
+        private void UpdateTargetConfidenceMetric(in BehaviorProfile profile)
+        {
+            if (_cachedBestWaypoint == null)
+            {
+                _targetConfidence = Mathf.Lerp(_targetConfidence, 0f, AIConstants.TargetConfidenceSmoothing);
+                return;
+            }
+
+            float scoreNormalization = Mathf.Max(AIConstants.TargetConfidenceScoreNormalization, 0.0001f);
+            float scoreFactor = Mathf.Clamp01(Mathf.Abs(_cachedBestScore) / scoreNormalization);
+
+            float decayTime = Mathf.Max(AIConstants.TargetConfidenceDecayTime, 0.0001f);
+            float age = Time.time - _lastTargetUpdateTime;
+            float recency = Mathf.Exp(-age / decayTime);
+
+            float confidence = Mathf.Clamp01(scoreFactor * recency * profile.ConfidenceBias);
+            _targetConfidence = Mathf.Lerp(_targetConfidence, confidence, AIConstants.TargetConfidenceSmoothing);
         }
     }
 }
