@@ -11,6 +11,7 @@ namespace Teams.ActarusControllerV2.pierre
         private readonly WaypointMetricSystem _metricSystem = new();
         private readonly WaypointEvaluator _evaluator = new();
         private readonly WaypointMemorySystem _memorySystem = new();
+        private readonly WaypointStrategicPlanner _planner = new();
         private readonly WaypointDebugDrawer _debugDrawer = new();
 
         private float _nextEvaluationTime;
@@ -25,6 +26,8 @@ namespace Teams.ActarusControllerV2.pierre
             int environmentSignature = ComputeEnvironmentSignature(data, scoreboard);
             bool environmentChanged = environmentSignature != _lastEnvironmentSignature;
 
+            _planner.UpdateGraph(data);
+
             if (!environmentChanged &&
                 Time.time < _nextEvaluationTime &&
                 _memorySystem.TryGetCachedTarget(out WayPointView cachedWaypoint, out float cachedEta, out float cachedScore, out IReadOnlyList<WayPointView> cachedPredictions))
@@ -36,7 +39,7 @@ namespace Teams.ActarusControllerV2.pierre
             Dictionary<WayPointView, WaypointMetrics> metrics = _metricSystem.ComputeMetrics(self, data);
             if (metrics.Count == 0)
             {
-                _memorySystem.ProcessEvaluation(null, null, out _, out _, out _, out _);
+                _memorySystem.ProcessEvaluation(null, null, _planner, out _, out _, out _, out _);
                 _lastEnvironmentSignature = environmentSignature;
                 _nextEvaluationTime = Time.time + AIConstants.EvaluationIntervalMin;
                 return WaypointSelectionResult.Empty;
@@ -50,7 +53,7 @@ namespace Teams.ActarusControllerV2.pierre
             var context = new WaypointEvaluationContext(deficitFactor, aggressionBias, cautionBias, endgameUrgency);
             Dictionary<WayPointView, float> rawScores = _evaluator.Evaluate(metrics, context);
 
-            _memorySystem.ProcessEvaluation(metrics, rawScores, out WayPointView bestWaypoint, out float bestScore, out float bestEta, out IReadOnlyList<WayPointView> futureWaypoints);
+            _memorySystem.ProcessEvaluation(metrics, rawScores, _planner, out WayPointView bestWaypoint, out float bestScore, out float bestEta, out IReadOnlyList<WayPointView> futureWaypoints);
 
             _lastEnvironmentSignature = environmentSignature;
             float evaluationInterval = ComputeEvaluationInterval(environmentChanged, bestWaypoint != null);

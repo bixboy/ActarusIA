@@ -46,6 +46,24 @@ namespace Teams.ActarusControllerV2.pierre
         // Macro evaluation helpers
         public const float EndgameTimeHorizon = 25f;
 
+        // Strategic planner tuning
+        public const int StrategicNeighbourCount = 4;
+        public const int StrategicPredictionDepth = 3;
+        public const int StrategicBranchingFactor = 4;
+        public const float StrategicFutureDiscount = 0.82f;
+        public const float StrategicScoreWeight = 1.05f;
+        public const float StrategicCentralityWeight = 0.55f;
+        public const float StrategicDominationWeight = 0.5f;
+        public const float StrategicSwingWeight = 0.45f;
+        public const float StrategicAdjacencyWeight = 0.35f;
+        public const float StrategicTravelPenalty = 0.25f;
+        public const float StrategicClosenessEpsilon = 0.35f;
+        public const float StrategicTriangleCycleWeight = 1.1f;
+        public const float StrategicSquareCycleWeight = 0.75f;
+        public const float StrategicDegreeWeight = 0.35f;
+        public const float StrategicTravelNormalization = 8.5f;
+        public const float StrategicEdgeNormalization = 18f;
+
         // Environmental hazard constants
         public const float MineDangerReach = 4f;
         public const float AsteroidBuffer = 1.25f;

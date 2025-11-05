@@ -43,6 +43,7 @@ namespace Teams.ActarusControllerV2.pierre
         public void ProcessEvaluation(
             Dictionary<WayPointView, WaypointMetrics> metrics,
             Dictionary<WayPointView, float> rawScores,
+            WaypointStrategicPlanner planner,
             out WayPointView finalTarget,
             out float finalScore,
             out float finalEta,
@@ -91,7 +92,7 @@ namespace Teams.ActarusControllerV2.pierre
             }
 
             ApplyHysteresis(smoothedScores, evaluatedBest, evaluatedBestScore, evaluatedBestEta, metrics);
-            UpdateCachedPredictions(smoothedScores);
+            UpdateCachedPredictions(smoothedScores, metrics, planner);
 
             finalTarget = _cachedBestWaypoint;
             finalScore = _cachedBestScore;
@@ -249,17 +250,46 @@ namespace Teams.ActarusControllerV2.pierre
             }
         }
 
-        private void UpdateCachedPredictions(Dictionary<WayPointView, float> scoredTargets)
+        private void UpdateCachedPredictions(
+            Dictionary<WayPointView, float> scoredTargets,
+            Dictionary<WayPointView, WaypointMetrics> metrics,
+            WaypointStrategicPlanner planner)
         {
             _cachedFutureWaypoints.Clear();
 
             if (scoredTargets == null || scoredTargets.Count == 0 || _cachedBestWaypoint == null)
                 return;
 
-            var sorted = new List<KeyValuePair<WayPointView, float>>(scoredTargets);
-            sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
+            if (planner != null)
+            {
+                IReadOnlyList<WayPointView> planned = planner.PlanCaptureOrder(
+                    _cachedBestWaypoint,
+                    metrics,
+                    scoredTargets,
+                    PredictionCount);
 
-            foreach ((WayPointView waypoint, float _) in sorted)
+                if (planned != null)
+                {
+                    foreach (WayPointView waypoint in planned)
+                    {
+                        if (waypoint == null || waypoint == _cachedBestWaypoint)
+                            continue;
+
+                        if (_cachedFutureWaypoints.Count >= PredictionCount)
+                            break;
+
+                        _cachedFutureWaypoints.Add(waypoint);
+                    }
+                }
+            }
+
+            if (_cachedFutureWaypoints.Count >= PredictionCount)
+                return;
+
+            var fallback = new List<KeyValuePair<WayPointView, float>>(scoredTargets);
+            fallback.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+            foreach ((WayPointView waypoint, float _) in fallback)
             {
                 if (waypoint == null || waypoint == _cachedBestWaypoint)
                     continue;
