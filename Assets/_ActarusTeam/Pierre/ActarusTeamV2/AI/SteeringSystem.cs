@@ -61,11 +61,18 @@ namespace Teams.ActarusControllerV2.pierre
                 return;
             }
 
-            // 1) Traduire les intentions → DesiredDirection / DesiredSpeed
-            BuildDesiredMotionFromIntentions(data);
+            Vector2 desiredDir = _blackboard.DesiredDirection;
+            if (desiredDir.sqrMagnitude < 1e-4f)
+            {
+                desiredDir = _blackboard.Self.Velocity.sqrMagnitude > 0.01f
+                    ? _blackboard.Self.Velocity.normalized
+                    : Blackboard.AngleToDir(_blackboard.Self.Orientation);
+            }
+
+            float desiredSpeed = Mathf.Clamp(_blackboard.DesiredSpeed, 0f, _blackboard.Self.SpeedMax);
 
             // 2) Calcul des forces
-            Vector2 targetVelocity = _blackboard.DesiredDirection * Mathf.Clamp(_blackboard.DesiredSpeed, 0f, _blackboard.Self.SpeedMax);
+            Vector2 targetVelocity = desiredDir * desiredSpeed;
             Vector2 velocityError = targetVelocity - _blackboard.Self.Velocity;
             Vector2 forceTarget = velocityError / Mathf.Max(0.1f, ResponseTime);
 
@@ -104,110 +111,6 @@ namespace Teams.ActarusControllerV2.pierre
 
         public float ThrustCommand => _thrustCommand;
         public float OrientationCommand => _orientationCommand;
-
-        // -----------------------------
-        // Intentions → motion targets
-        // -----------------------------
-        private void BuildDesiredMotionFromIntentions(GameData data)
-        {
-            var self = _blackboard.Self;
-
-            // Valeurs par défaut si rien d'explicite :
-            Vector2 desiredDir = (self.Velocity.sqrMagnitude > 0.01f)
-                ? self.Velocity.normalized
-                : Blackboard.AngleToDir(self.Orientation);
-            float desiredSpeed = self.SpeedMax * 0.5f;
-
-            // Evade: direction via évitement prédictif + latéral
-            if (_blackboard.ShouldEvade)
-            {
-                Vector2 avoid = ComputeEmergencyEvadeDirection(data);
-                if (avoid.sqrMagnitude > 1e-5f) desiredDir = avoid;
-                desiredSpeed = Mathf.Max(self.SpeedMax * 0.85f, self.Velocity.magnitude);
-            }
-            // Retreat: s’éloigne de l’ennemi si connu, sinon oppose la vitesse / orientation
-            else if (_blackboard.ShouldRetreat)
-            {
-                if (_blackboard.Enemy != null)
-                {
-                    desiredDir = (self.Position - _blackboard.Enemy.Position);
-                    if (desiredDir.sqrMagnitude > 1e-5f) desiredDir.Normalize();
-                    else desiredDir = Blackboard.AngleToDir(self.Orientation + 180f);
-                }
-                else
-                {
-                    desiredDir = (self.Velocity.sqrMagnitude > 0.01f)
-                        ? (-self.Velocity).normalized
-                        : Blackboard.AngleToDir(self.Orientation + 180f);
-                }
-
-                float t = Mathf.Clamp01(self.Energy / MidEnergyThreshold);
-                desiredSpeed = Mathf.Lerp(self.SpeedMax * RetreatMinRatio, self.SpeedMax * RetreatMaxRatio, t);
-            }
-            // Capture: fonce vers le waypoint, ralentit près du centre
-            else if (_blackboard.ShouldCapture && _blackboard.TargetWaypoint != null)
-            {
-                Vector2 toPoint = _blackboard.TargetWaypoint.Position - self.Position;
-                float dist = toPoint.magnitude;
-                if (dist > 1e-4f) desiredDir = toPoint / dist;
-
-                float speedRatio = dist > CaptureSlowDistance
-                    ? 1.0f
-                    : Mathf.Lerp(0.45f, 0.8f, Mathf.InverseLerp(0.15f, CaptureSlowDistance, dist));
-
-                desiredSpeed = self.SpeedMax * speedRatio;
-            }
-            // Orbit: mouvement tangentiel autour du WP (défense)
-            else if (_blackboard.ShouldOrbit)
-            {
-                Vector2 center = (_blackboard.TargetWaypoint != null) ? _blackboard.TargetWaypoint.Position : self.Position;
-                Vector2 radial = self.Position - center;
-                if (radial.sqrMagnitude < 1e-6f)
-                    radial = Blackboard.AngleToDir(self.Orientation);
-
-                Vector2 tangent = new Vector2(-radial.y, radial.x).normalized;
-                desiredDir = tangent;
-                desiredSpeed = self.SpeedMax * OrbitSpeedRatio;
-            }
-            // Attack: se projette vers l’ennemi (lead temporel simple) sinon garde cap
-            else if (_blackboard.ShouldEngageEnemy)
-            {
-                if (_blackboard.Enemy != null)
-                {
-                    // petit lead de tir simplifié pour le déplacement
-                    const float lead = 0.55f;
-                    Vector2 predicted = _blackboard.Enemy.Position + _blackboard.Enemy.Velocity * lead;
-                    Vector2 toPred = predicted - self.Position;
-                    if (toPred.sqrMagnitude > 1e-6f) desiredDir = toPred.normalized;
-                }
-
-                desiredSpeed = self.SpeedMax; // agressif
-            }
-            // Idle: glide propre
-            else
-            {
-                desiredSpeed = self.SpeedMax * 0.45f;
-            }
-
-            _blackboard.DesiredDirection = (desiredDir.sqrMagnitude > 1.0001f) ? desiredDir.normalized : desiredDir;
-            _blackboard.DesiredSpeed = Mathf.Max(0f, desiredSpeed);
-        }
-
-        // ---------------------------------
-        // Evade direction (utilisé en Evade)
-        // ---------------------------------
-        private Vector2 ComputeEmergencyEvadeDirection(GameData data)
-        {
-            if (_blackboard.Self == null)
-                return Vector2.zero;
-
-            Vector2 baseAvoid = ComputePredictiveAvoidance(_blackboard.Self, data);
-            Vector2 perpendicular = new Vector2(-_blackboard.Self.Velocity.y, _blackboard.Self.Velocity.x);
-            if (perpendicular.sqrMagnitude > 0.0001f) perpendicular.Normalize();
-
-            Vector2 combined = baseAvoid + perpendicular * 0.5f;
-            return combined.sqrMagnitude > 0.0001f ? combined.normalized : baseAvoid;
-        }
 
         // -----------------------------
         // Forces auxiliaires
@@ -345,16 +248,16 @@ namespace Teams.ActarusControllerV2.pierre
             Vector2 forward = Blackboard.AngleToDir(self.Orientation);
             float align = steering.sqrMagnitude > 0.0001f ? Mathf.Clamp01(Vector2.Dot(forward, steering.normalized)) : 0f;
 
-            float thrustBase;
-            if (self.Energy < LowEnergyThreshold)       
-                thrustBase = 0.25f;
-            else if (self.Energy < MidEnergyThreshold) 
-                thrustBase = 0.55f;
-            else                                       
-                thrustBase = 0.8f;
+            float energyBias;
+            if (self.Energy < LowEnergyThreshold)
+                energyBias = 0.25f;
+            else if (self.Energy < MidEnergyThreshold)
+                energyBias = 0.55f;
+            else
+                energyBias = 0.8f;
 
-            if (_blackboard.ShouldCapture || _blackboard.ShouldEngageEnemy)
-                thrustBase = Mathf.Min(1.0f, thrustBase + 0.2f);
+            float desiredSpeedRatio = Mathf.Clamp01(_blackboard.DesiredSpeed / Mathf.Max(0.01f, self.SpeedMax));
+            float thrustBase = Mathf.Lerp(energyBias, 1f, desiredSpeedRatio);
 
             float thrust = thrustBase + align * AlignToSteeringThrustBoost;
 

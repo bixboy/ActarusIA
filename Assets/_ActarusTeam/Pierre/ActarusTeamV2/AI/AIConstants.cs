@@ -10,6 +10,11 @@ namespace Teams.ActarusControllerV2.pierre
     {
         // Evaluation cadence
         public const float EvaluationInterval = 0.25f;
+        public const float EvaluationIntervalMin = 0.18f;
+        public const float EvaluationIntervalMax = 0.5f;
+        public const float EvaluationConfidenceBias = 0.3f;
+        public const float EnvironmentChangeIntervalMultiplier = 0.6f;
+        public const float EnvironmentSignatureTimeFactor = 0.25f;
 
         // Spatial normalisation factors
         public const float DistanceNormalization = 14f;
@@ -24,6 +29,11 @@ namespace Teams.ActarusControllerV2.pierre
         public const float ScoreMomentumWeight = 0.18f;
         public const float MemoryPenaltyMultiplier = 0.5f;
         public const float CurrentTargetBonus = 0.2f;
+        public const float VolatilitySmoothing = 0.35f;
+        public const float VolatilityNormalization = 0.65f;
+        public const float TargetConfidenceScoreNormalization = 1.6f;
+        public const float TargetConfidenceDecayTime = 2.4f;
+        public const float TargetConfidenceSmoothing = 0.25f;
 
         // Target switching rules
         public const float TargetSwitchBias = 0.22f;
@@ -35,6 +45,24 @@ namespace Teams.ActarusControllerV2.pierre
 
         // Macro evaluation helpers
         public const float EndgameTimeHorizon = 25f;
+
+        // Strategic planner tuning
+        public const int StrategicNeighbourCount = 4;
+        public const int StrategicPredictionDepth = 3;
+        public const int StrategicBranchingFactor = 4;
+        public const float StrategicFutureDiscount = 0.82f;
+        public const float StrategicScoreWeight = 1.05f;
+        public const float StrategicCentralityWeight = 0.55f;
+        public const float StrategicDominationWeight = 0.5f;
+        public const float StrategicSwingWeight = 0.45f;
+        public const float StrategicAdjacencyWeight = 0.35f;
+        public const float StrategicTravelPenalty = 0.25f;
+        public const float StrategicClosenessEpsilon = 0.35f;
+        public const float StrategicTriangleCycleWeight = 1.1f;
+        public const float StrategicSquareCycleWeight = 0.75f;
+        public const float StrategicDegreeWeight = 0.35f;
+        public const float StrategicTravelNormalization = 8.5f;
+        public const float StrategicEdgeNormalization = 18f;
 
         // Environmental hazard constants
         public const float MineDangerReach = 4f;
