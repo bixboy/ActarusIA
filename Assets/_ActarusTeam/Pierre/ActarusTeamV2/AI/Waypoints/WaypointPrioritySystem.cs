@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using DoNotModify;
@@ -14,20 +15,20 @@ namespace Teams.ActarusControllerV2.pierre
 
         private float _nextEvaluationTime;
         
-        public WayPointView SelectBestWaypoint(SpaceShipView self, GameData data)
+        public WaypointSelectionResult SelectBestWaypoint(SpaceShipView self, GameData data)
         {
             if (self == null || data?.WayPoints == null || data.WayPoints.Count == 0)
-                return null;
+                return WaypointSelectionResult.Empty;
 
-            if (Time.time < _nextEvaluationTime && _memorySystem.TryGetCachedTarget(out WayPointView cachedWaypoint, out float cachedEta, out float cachedScore))
+            if (Time.time < _nextEvaluationTime && _memorySystem.TryGetCachedTarget(out WayPointView cachedWaypoint, out float cachedEta, out float cachedScore, out IReadOnlyList<WayPointView> cachedPredictions))
             {
                 _debugDrawer.DrawSelection(self, cachedWaypoint, cachedEta, cachedScore);
-                return cachedWaypoint;
+                return new WaypointSelectionResult(cachedWaypoint, cachedScore, cachedEta, CreatePredictionSnapshot(cachedPredictions));
             }
 
             Dictionary<WayPointView, WaypointMetrics> metrics = _metricSystem.ComputeMetrics(self, data);
             if (metrics.Count == 0)
-                return null;
+                return WaypointSelectionResult.Empty;
 
             float deficitFactor = ScoreDeficitFactor(self, data);
             float aggressionBias = Mathf.Lerp(0.75f, 1.4f, deficitFactor);
@@ -37,12 +38,23 @@ namespace Teams.ActarusControllerV2.pierre
             var context = new WaypointEvaluationContext(deficitFactor, aggressionBias, cautionBias, endgameUrgency);
             Dictionary<WayPointView, float> rawScores = _evaluator.Evaluate(metrics, context);
 
-            _memorySystem.ProcessEvaluation(metrics, rawScores, out WayPointView bestWaypoint, out float bestScore, out float bestEta);
+            _memorySystem.ProcessEvaluation(metrics, rawScores, out WayPointView bestWaypoint, out float bestScore, out float bestEta, out IReadOnlyList<WayPointView> futureWaypoints);
 
             _nextEvaluationTime = Time.time + AIConstants.EvaluationInterval;
 
             _debugDrawer.DrawSelection(self, bestWaypoint, bestEta, bestScore);
-            return bestWaypoint;
+            return new WaypointSelectionResult(bestWaypoint, bestScore, bestEta, CreatePredictionSnapshot(futureWaypoints));
+        }
+
+        private static IReadOnlyList<WayPointView> CreatePredictionSnapshot(IReadOnlyList<WayPointView> predictions)
+        {
+            if (predictions == null || predictions.Count == 0)
+                return Array.Empty<WayPointView>();
+
+            if (predictions is WayPointView[] array)
+                return (WayPointView[])array.Clone();
+
+            return new List<WayPointView>(predictions);
         }
 
         private float ScoreDeficitFactor(SpaceShipView self, GameData data)

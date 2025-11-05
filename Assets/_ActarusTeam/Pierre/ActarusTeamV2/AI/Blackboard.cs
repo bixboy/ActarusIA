@@ -1,3 +1,5 @@
+using System;
+using System.Collections.Generic;
 using DoNotModify;
 using UnityEngine;
 
@@ -22,6 +24,11 @@ namespace Teams.ActarusControllerV2.pierre
         /// Gets or sets the target waypoint of interest.
         /// </summary>
         public WayPointView TargetWaypoint { get; set; }
+
+        /// <summary>
+        /// Gets or sets the predicted future waypoints after the primary target.
+        /// </summary>
+        public IReadOnlyList<WayPointView> TargetWaypointPredictions { get; set; } = Array.Empty<WayPointView>();
 
         /// <summary>
         /// Gets or sets a value indicating whether the enemy is visible.

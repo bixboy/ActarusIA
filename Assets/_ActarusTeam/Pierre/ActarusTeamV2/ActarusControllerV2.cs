@@ -31,8 +31,10 @@ namespace Teams.ActarusControllerV2.pierre
         public override InputData UpdateInput(SpaceShipView spaceship, GameData data)
         {
             _perception.UpdatePerception(spaceship, data);
-            _blackboard.TargetWaypoint = _waypointSystem.SelectBestWaypoint(spaceship, data);
-            
+            WaypointSelectionResult selection = _waypointSystem.SelectBestWaypoint(spaceship, data);
+            _blackboard.TargetWaypoint = selection.TargetWaypoint;
+            _blackboard.TargetWaypointPredictions = selection.FutureWaypoints;
+
             _combat.UpdateWeapons(data);
             _decision.UpdateDecision(data);
             _steering.UpdateSteering(data);

@@ -15,29 +15,41 @@ namespace Teams.ActarusControllerV2.pierre
         private float _lastTargetUpdateTime;
         private float _targetLockUntil;
 
+        private const int PredictionCount = 3;
+
         private WayPointView _cachedBestWaypoint;
         private float _cachedBestScore;
         private float _cachedBestEta;
-        
-        public bool TryGetCachedTarget(out WayPointView waypoint, out float eta, out float score)
+        private readonly List<WayPointView> _cachedFutureWaypoints = new(PredictionCount);
+
+        public bool TryGetCachedTarget(out WayPointView waypoint, out float eta, out float score, out IReadOnlyList<WayPointView> futureWaypoints)
         {
             waypoint = _cachedBestWaypoint;
             eta = _cachedBestEta;
             score = _cachedBestScore;
-            
+            futureWaypoints = _cachedFutureWaypoints;
+
             return waypoint != null;
         }
-        
-        public void ProcessEvaluation(Dictionary<WayPointView, WaypointMetrics> metrics, Dictionary<WayPointView, float> rawScores, out WayPointView finalTarget, out float finalScore, out float finalEta)
+
+        public void ProcessEvaluation(
+            Dictionary<WayPointView, WaypointMetrics> metrics,
+            Dictionary<WayPointView, float> rawScores,
+            out WayPointView finalTarget,
+            out float finalScore,
+            out float finalEta,
+            out IReadOnlyList<WayPointView> futureWaypoints)
         {
             if (metrics == null || rawScores == null || rawScores.Count == 0)
             {
                 _cachedBestWaypoint = null;
                 _cachedBestScore = float.MinValue;
                 _cachedBestEta = float.PositiveInfinity;
+                _cachedFutureWaypoints.Clear();
                 finalTarget = null;
                 finalScore = float.MinValue;
                 finalEta = float.PositiveInfinity;
+                futureWaypoints = _cachedFutureWaypoints;
                 return;
             }
 
@@ -65,10 +77,12 @@ namespace Teams.ActarusControllerV2.pierre
             }
 
             ApplyHysteresis(smoothedScores, evaluatedBest, evaluatedBestScore, evaluatedBestEta, metrics);
+            UpdateCachedPredictions(smoothedScores);
 
             finalTarget = _cachedBestWaypoint;
             finalScore = _cachedBestScore;
             finalEta = _cachedBestEta;
+            futureWaypoints = _cachedFutureWaypoints;
         }
 
         private float ApplyMomentum(int waypointIndex, float rawScore)
@@ -205,7 +219,7 @@ namespace Teams.ActarusControllerV2.pierre
                     _currentTargetScore = finalScore;
                     _lastTargetUpdateTime = now;
                     _targetLockUntil = now + Mathf.Lerp(AIConstants.TargetHoldMin, AIConstants.TargetHoldMax, Mathf.Clamp01(finalScore));
-                    
+
                     if (metrics.TryGetValue(finalTarget, out WaypointMetrics finalMetrics))
                         Debug.Log($"Selected target: WP#{finalMetrics.Index} ETA={finalEta:F1}s Score={finalScore:F2}");
                 }
@@ -213,6 +227,27 @@ namespace Teams.ActarusControllerV2.pierre
                 {
                     _currentTargetScore = finalScore;
                 }
+            }
+        }
+
+        private void UpdateCachedPredictions(Dictionary<WayPointView, float> scoredTargets)
+        {
+            _cachedFutureWaypoints.Clear();
+
+            if (scoredTargets == null || scoredTargets.Count == 0 || _cachedBestWaypoint == null)
+                return;
+
+            var sorted = new List<KeyValuePair<WayPointView, float>>(scoredTargets);
+            sorted.Sort((a, b) => b.Value.CompareTo(a.Value));
+
+            foreach ((WayPointView waypoint, float _) in sorted)
+            {
+                if (waypoint == null || waypoint == _cachedBestWaypoint)
+                    continue;
+
+                _cachedFutureWaypoints.Add(waypoint);
+                if (_cachedFutureWaypoints.Count >= PredictionCount)
+                    break;
             }
         }
 
