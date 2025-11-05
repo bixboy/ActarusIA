@@ -40,58 +40,113 @@ namespace Teams.ActarusController.Shahine
         [ReadOnly] public bool hasToFireShockwave;
  
         public float angleTolerance = 25f;
+
+        public bool UseOldWaypointSystemPriority;
         
         
         public void InitializeFromGameData(SpaceShipView ship, GameData data)
         {
-
             myShip = ship;
+            Debug.Log("SpaceShipt orientation : " + myShip.Orientation + ", SpaceShip Look At angle : " + myShip.LookAt);
             enemyShip = data.SpaceShips.First(s => s.Owner != ship.Owner);
             waypoints = data.WayPoints;
             asteroids = data.Asteroids;
+            
             mines = data.Mines;
             bullets = data.Bullets;
             energy = ship.Energy;
             timeLeft = data.timeLeft;
 
             _waypointPrioritySystem = new WaypointPrioritySystem();
-            WaypointSelectionResult selectionResult = _waypointPrioritySystem.SelectBestWaypoint(ship, data);
+            if (UseOldWaypointSystemPriority)
+            {
+                targetWaypoint = GetNearestWaypoint(myShip.Position);
+                nextWayPoint = GetNearestWaypoint(targetWaypoint.Position);
+            }
+            else
+            {
+                WaypointSelectionResult selectionResult = _waypointPrioritySystem.SelectBestWaypoint(ship, data);
+                targetWaypoint = selectionResult.TargetWaypoint;
+                nextWayPoint = selectionResult.FutureWaypoints[0];
+            }
             
-            targetWaypoint = selectionResult.TargetWaypoint;
-            nextWayPoint = selectionResult.FutureWaypoints[0];
-
             if (targetWaypoint != null)
                 distanceToTarget = Vector2.Distance(ship.Position, targetWaypoint.Position);
 
             if (nextWayPoint != null)
-            {
                 distanceToNextTarget = Vector2.Distance(ship.Position, nextWayPoint.Position);
-            }
+            
         }
 
         public void UpdateFromGameData(GameData data)
         {
+            mines = data.Mines;
+            bullets = data.Bullets;
             energy = myShip.Energy;
             timeLeft = data.timeLeft;
             
             if (targetWaypoint == null || targetWaypoint.Owner == myShip.Owner)
             {
-                WaypointSelectionResult selectionResult = _waypointPrioritySystem.SelectBestWaypoint(myShip, data);
                 lastWayPoint = targetWaypoint;
-                targetWaypoint = selectionResult.TargetWaypoint;
-                targetWaypoint = selectionResult.TargetWaypoint;
-                nextWayPoint = selectionResult.FutureWaypoints[0];
+                if (UseOldWaypointSystemPriority)
+                {
+                    targetWaypoint = nextWayPoint ?? GetNearestWaypoint(myShip.Position);
+                    nextWayPoint = GetNextWayPoint();
+                }
+                else
+                {
+                    WaypointSelectionResult selectionResult = _waypointPrioritySystem.SelectBestWaypoint(myShip, data);
+                    targetWaypoint = selectionResult.TargetWaypoint;
+                    nextWayPoint = selectionResult.FutureWaypoints[0];
+                }
             }
 
             if (targetWaypoint != null)
                 distanceToTarget = Vector2.Distance(myShip.Position, targetWaypoint.Position);
             
-            if (lastWayPoint != null)
-                distanceToLastTarget = Vector2.Distance(myShip.Position, lastWayPoint.Position);
-
+            if (targetWaypoint != null)
+                distanceToTarget = Vector2.Distance(myShip.Position, targetWaypoint.Position);
+            
             if (nextWayPoint != null)
                 distanceToNextTarget = Vector2.Distance(myShip.Position, nextWayPoint.Position);
 
+        }
+
+        public WayPointView GetNearestWaypoint(Vector2 from)
+        {
+            return waypoints
+                .Where(w => w.Owner != myShip.Owner)
+                .OrderBy(w => Vector2.Distance(from, w.Position))
+                .FirstOrDefault();;
+        }
+        
+        
+        public WayPointView GetNextWayPoint()
+        {
+            Vector2 currentVelocity = myShip.Velocity.sqrMagnitude > 0.01f 
+                ? myShip.Velocity.normalized 
+                : (targetWaypoint.Position - myShip.Position).normalized;
+
+            Vector2 currentTargetPos = targetWaypoint.Position;
+            
+            return waypoints
+                .Where(w =>
+                    w != targetWaypoint &&  
+                    w.Owner != myShip.Owner)                
+                .OrderByDescending(w =>
+                {
+                    // Distance
+                    float distScore = 1f - Mathf.Clamp01(Vector2.Distance(currentTargetPos, w.Position) / 10f);
+                        
+                    // Alignement 
+                    Vector2 dirToNext = (w.Position - currentTargetPos).normalized;
+                    float alignment = Vector2.Dot(currentVelocity, dirToNext); // 1 = aligné, -1 = opposé
+                    float alignScore = Mathf.Max(0f, alignment); // on ignore les directions opposées
+
+                    // Score global pondéré 
+                    // pondération : 60% inertie (alignement), 40% distance
+                    return alignScore * 0.6f + distScore * 0.4f;
+                }).FirstOrDefault();
         }
 
         public bool IsInFrontOfMine()
