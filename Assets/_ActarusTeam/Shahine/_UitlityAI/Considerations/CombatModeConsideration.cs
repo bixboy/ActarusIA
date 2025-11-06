@@ -18,7 +18,7 @@ namespace UtilityAI
             Preconditions.CheckNotNull(context, "Context is required to evaluate combat mode considerations.");
 
             ActarusControllerUtilityAI controller = context.ControllerUtilityAI;
-            if (controller == null)
+            if (!controller)
                 return 0f;
 
             bool isMatch = controller.CurrentCombatMode == requiredMode;

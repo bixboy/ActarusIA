@@ -29,6 +29,8 @@ namespace UtilityAI
         public override InputData Execute(Context context)
         {
             InputData input = new InputData();
+            
+            Debug.Log("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
 
             var controller = context.ControllerUtilityAI;
             var myShip = context.GetData<SpaceShipView>("MyShip");
@@ -37,7 +39,7 @@ namespace UtilityAI
             if (myShip == null || enemy == null)
                 return input;
 
-            if (controller != null && controller.CurrentCombatMode != ActarusControllerUtilityAI.CombatMode.Hunt)
+            if (controller && controller.CurrentCombatMode != ActarusControllerUtilityAI.CombatMode.Hunt)
                 controller.SetCombatMode(ActarusControllerUtilityAI.CombatMode.Hunt);
 
             Vector2 pursuitPoint = ComputePursuitPoint(myShip, enemy);
@@ -77,6 +79,7 @@ namespace UtilityAI
             {
                 Vector2 toEnemy = (enemy.Position - myShip.Position).normalized;
                 float backwardDot = Vector2.Dot(-myShip.LookAt.normalized, toEnemy);
+                
                 if (backwardDot > 0.65f)
                     input.dropMine = true;
             }
