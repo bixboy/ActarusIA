@@ -31,6 +31,12 @@ namespace UtilityAI
             if (targetWaypoint == null || myShip == null)
                 return input;
 
+            if (context.ControllerUtilityAI != null &&
+                context.ControllerUtilityAI.CurrentCombatMode != ActarusControllerUtilityAI.CombatMode.Capture)
+            {
+                context.ControllerUtilityAI.SetCombatMode(ActarusControllerUtilityAI.CombatMode.Capture);
+            }
+
             float targetOrient;
             if (myShip.Velocity.sqrMagnitude < 0.0001f)
             {
@@ -55,8 +61,6 @@ namespace UtilityAI
             if (angleDiff < angleTolerance)
             {
                 input.thrust = Mathf.Lerp(0.3f, 1f, 1 - angleDiff / angleTolerance);
-                Debug.Log(distanceToTarget - targetWaypoint.Radius);
-
                 if (distanceToTarget - targetWaypoint.Radius <= breakDistance)
                 {
                     input.thrust = 0;
