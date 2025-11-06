@@ -306,12 +306,10 @@ namespace Teams.ActarusController.Shahine
 
             if (_currentCombatMode != CombatMode.Hunt && huntConditionsMet)
             {
-                Debug.Log("HUNT");
                 SetCombatMode(CombatMode.Hunt);
             }
             else if (_currentCombatMode == CombatMode.Hunt && captureConditionsMet && !huntConditionsMet)
             {
-                Debug.Log("CAPTURE");
                 SetCombatMode(CombatMode.Capture);
             }
         }
@@ -346,6 +344,9 @@ namespace Teams.ActarusController.Shahine
 
             if (context != null)
             {
+                
+                Debug.Log(newMode);
+                
                 context.SetData("PreviousCombatMode", _previousCombatMode);
                 context.SetData("CurrentCombatMode", _currentCombatMode);
                 context.SetData("TimeInCurrentCombatMode", 0f);
