@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using DoNotModify;
+using Teams.ActarusController.Shahine.UtilityActions;
 using UnityEngine;
 
 namespace Teams.ActarusController.Shahine
@@ -9,6 +10,7 @@ namespace Teams.ActarusController.Shahine
     {
         [SerializeField] private Blackboard _bb;
         [SerializeField] private List<UtilityAction> _actions = new List<UtilityAction>();
+        private CombatModeSelector _modeSelector;
 
         public UtilityAgent(Blackboard bb)
         {
@@ -18,9 +20,22 @@ namespace Teams.ActarusController.Shahine
         public void Init(Blackboard bb)
         {
             _bb = bb;
-            foreach (UtilityAction action in _actions)
+
+            var discovered = GetComponents<UtilityAction>()
+                .Where(action => action != null && action is not CombatModeSelector)
+                .ToList();
+
+            foreach (UtilityAction action in discovered)
             {
                 action.InitAction(_bb);
+            }
+
+            _actions = discovered;
+
+            _modeSelector = GetComponent<CombatModeSelector>();
+            if (_modeSelector != null)
+            {
+                _modeSelector.InitAction(_bb);
             }
         }
 
@@ -31,11 +46,22 @@ namespace Teams.ActarusController.Shahine
 
         public InputData Decide()
         {
-            if (_actions.Count == 0)
+            _modeSelector?.Execute();
+
+            if (_actions == null || _actions.Count == 0)
+                return new InputData();
+
+            var currentMode = _bb != null ? _bb.combatMode : Blackboard.CombatMode.Capture;
+
+            var actionable = _actions
+                .Where(a => a != null && a.IsAvailableForMode(currentMode))
+                .ToList();
+
+            if (actionable.Count == 0)
                 return new InputData();
 
             // Calcul des scores
-            var scored = _actions
+            var scored = actionable
                 .Select(a => new { action = a, score = a.ComputeUtility() })
                 .OrderByDescending(a => a.score)
                 .ToList();

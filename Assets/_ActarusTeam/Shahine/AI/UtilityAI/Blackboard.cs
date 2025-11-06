@@ -13,6 +13,12 @@ namespace Teams.ActarusController.Shahine
     /// </summary>
     public sealed class Blackboard : MonoBehaviour
     {
+        public enum CombatMode
+        {
+            Capture,
+            Hunt
+        }
+
         [ReadOnly] public SpaceShipView myShip;
         [ReadOnly] public SpaceShipView enemyShip;
 
@@ -38,7 +44,12 @@ namespace Teams.ActarusController.Shahine
         [ReadOnly] public bool hasToDropMine;
         [ReadOnly] public bool hasToShoot;
         [ReadOnly] public bool hasToFireShockwave;
- 
+
+        [ReadOnly] public CombatMode combatMode = CombatMode.Capture;
+        [ReadOnly] public int scoreLead;
+        [ReadOnly] public int waypointLead;
+        [ReadOnly] public int hitLead;
+
         public float angleTolerance = 25f;
 
         public bool UseOldWaypointSystemPriority;
@@ -56,6 +67,10 @@ namespace Teams.ActarusController.Shahine
             bullets = data.Bullets;
             energy = ship.Energy;
             timeLeft = data.timeLeft;
+
+            combatMode = CombatMode.Capture;
+
+            RefreshScoreboard();
 
             _waypointPrioritySystem = new WaypointPrioritySystem();
             if (UseOldWaypointSystemPriority)
@@ -84,7 +99,9 @@ namespace Teams.ActarusController.Shahine
             bullets = data.Bullets;
             energy = myShip.Energy;
             timeLeft = data.timeLeft;
-            
+
+            RefreshScoreboard();
+
             if (targetWaypoint == null || targetWaypoint.Owner == myShip.Owner)
             {
                 lastWayPoint = targetWaypoint;
@@ -223,6 +240,21 @@ namespace Teams.ActarusController.Shahine
             hitTimeTolerance = Mathf.Clamp(hitTimeTolerance, 0.2f, 2f);
             
             return AimingHelpers.CanHit(myShip, enemyPos, enemyShip.Velocity, hitTimeTolerance);
+        }
+
+        public void SetCombatMode(CombatMode mode)
+        {
+            combatMode = mode;
+        }
+
+        public void RefreshScoreboard()
+        {
+            if (myShip == null || enemyShip == null)
+                return;
+
+            scoreLead = myShip.Score - enemyShip.Score;
+            waypointLead = myShip.WaypointScore - enemyShip.WaypointScore;
+            hitLead = myShip.HitScore - enemyShip.HitScore;
         }
 
 
