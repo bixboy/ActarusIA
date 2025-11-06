@@ -31,7 +31,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         protected override float GetInputValue(Scorer scorer)
         {
-            if (_bb == null)
+            if (!_bb)
                 return 0f;
 
             switch (scorer.inputType)
@@ -52,7 +52,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         protected bool HasWaitedMinimumDuration()
         {
-            if (_bb == null)
+            if (!_bb)
                 return false;
 
             return Time.time - _bb.lastCombatModeSwitchTime >= minimumModeDuration;
@@ -62,7 +62,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         {
             CombatEvaluation evaluation = new CombatEvaluation();
 
-            if (_bb == null || _bb.myShip == null || _bb.enemyShip == null)
+            if (!_bb || _bb.myShip == null || _bb.enemyShip == null)
             {
                 evaluation.HasValidData = false;
                 return evaluation;

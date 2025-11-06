@@ -11,7 +11,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         {
             InputData input = new InputData();
 
-            if (_bb == null)
+            if (!_bb)
                 return input;
 
             if (_bb.combatMode != Blackboard.CombatMode.Hunt)
