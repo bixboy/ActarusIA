@@ -49,6 +49,10 @@ namespace Teams.ActarusController.Shahine
         [ReadOnly] public int scoreLead;
         [ReadOnly] public int waypointLead;
         [ReadOnly] public int hitLead;
+        
+        [Header("Enemy Behavior Tracking")]
+        [ReadOnly] public float enemyAggressionIndex = 0f;
+
 
         public float angleTolerance = 25f;
 
@@ -136,37 +140,26 @@ namespace Teams.ActarusController.Shahine
 
         public WayPointView GetNearestWaypoint(Vector2 from)
         {
-            return waypoints
-                .Where(w => w.Owner != myShip.Owner)
-                .OrderBy(w => Vector2.Distance(from, w.Position))
-                .FirstOrDefault();;
+            return waypoints.Where(w => w.Owner != myShip.Owner).OrderBy(w => Vector2.Distance(from, w.Position)).FirstOrDefault();
         }
         
         
         public WayPointView GetNextWayPoint()
         {
-            Vector2 currentVelocity = myShip.Velocity.sqrMagnitude > 0.01f 
-                ? myShip.Velocity.normalized 
-                : (targetWaypoint.Position - myShip.Position).normalized;
+            Vector2 currentVelocity = myShip.Velocity.sqrMagnitude > 0.01f ? myShip.Velocity.normalized : (targetWaypoint.Position - myShip.Position).normalized;
 
             Vector2 currentTargetPos = targetWaypoint.Position;
             
             return waypoints
-                .Where(w =>
-                    w != targetWaypoint &&  
-                    w.Owner != myShip.Owner)                
+                .Where(w => w != targetWaypoint && w.Owner != myShip.Owner)                
                 .OrderByDescending(w =>
                 {
-                    // Distance
                     float distScore = 1f - Mathf.Clamp01(Vector2.Distance(currentTargetPos, w.Position) / 10f);
                         
-                    // Alignement 
                     Vector2 dirToNext = (w.Position - currentTargetPos).normalized;
-                    float alignment = Vector2.Dot(currentVelocity, dirToNext); // 1 = aligné, -1 = opposé
-                    float alignScore = Mathf.Max(0f, alignment); // on ignore les directions opposées
-
-                    // Score global pondéré 
-                    // pondération : 60% inertie (alignement), 40% distance
+                    float alignment = Vector2.Dot(currentVelocity, dirToNext);
+                    float alignScore = Mathf.Max(0f, alignment);
+                    
                     return alignScore * 0.6f + distScore * 0.4f;
                 }).FirstOrDefault();
         }
@@ -256,6 +249,30 @@ namespace Teams.ActarusController.Shahine
             waypointLead = myShip.WaypointScore - enemyShip.WaypointScore;
             hitLead = myShip.HitScore - enemyShip.HitScore;
         }
+        
+        public void UpdateEnemyBehavior()
+        {
+            if (myShip == null || enemyShip == null)
+                return;
+
+            bool aimingAtUs = AimingHelpers.CanHit(enemyShip, myShip.Position, 20f);
+
+            float distance = Vector2.Distance(myShip.Position, enemyShip.Position);
+            float relativeClosingSpeed = Vector2.Dot(enemyShip.Velocity, (myShip.Position - enemyShip.Position).normalized);
+            bool closingIn = relativeClosingSpeed > 0.5f;
+
+            bool closeRange = distance < 4.5f;
+
+            if (aimingAtUs || closingIn || closeRange)
+            {
+                enemyAggressionIndex = Mathf.Lerp(enemyAggressionIndex, 1f, 0.06f);
+            }
+            else
+            {
+                enemyAggressionIndex = Mathf.Lerp(enemyAggressionIndex, 0f, 0.02f);
+            }
+        }
+
 
 
     }
