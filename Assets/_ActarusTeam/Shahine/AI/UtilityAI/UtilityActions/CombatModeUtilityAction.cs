@@ -19,6 +19,10 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         [SerializeField, Range(0f, 1f)] protected float enemyAggressionTolerance = 0.65f;
         [SerializeField, Range(0f, 1f)] protected float clutchAggressionBoost = 1.35f;
 
+        [Header("Advanced Tactical Logic")]
+        [SerializeField] protected int hysteresisMargin = 1;
+        [SerializeField, Range(0f, 1f)] protected float enemyLowEnergyThreshold = 0.25f;
+
         [Header("Stability")]
         [SerializeField] protected float minimumModeDuration = 3f;
 
@@ -36,13 +40,13 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
             switch (scorer.inputType)
             {
-                case ScorerInputType.Ownership:
+                case ScorerInputType.TargetWaypointOwnership:
                     return Mathf.Max(0, _bb.waypointLead);
 
-                case ScorerInputType.Energy:
+                case ScorerInputType.MyShipEnergyLeft:
                     return _bb.myShip != null ? _bb.myShip.Energy : 0f;
 
-                case ScorerInputType.Speed:
+                case ScorerInputType.ShipSpeed:
                     return _bb.enemyShip != null ? _bb.enemyShip.Velocity.magnitude : 0f;
 
                 default:
@@ -60,26 +64,31 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         protected CombatEvaluation EvaluateCombatSituation()
         {
-            CombatEvaluation evaluation = new CombatEvaluation();
+            CombatEvaluation ev = new CombatEvaluation();
 
             if (!_bb || _bb.myShip == null || _bb.enemyShip == null)
             {
-                evaluation.HasValidData = false;
-                return evaluation;
+                ev.HasValidData = false;
+                return ev;
             }
 
-            evaluation.HasValidData = true;
-            evaluation.ComfortableLead = _bb.scoreLead >= overallLeadForHunt || _bb.waypointLead >= waypointLeadForHunt;
-            evaluation.AcceptableDeficit = _bb.scoreLead >= -Mathf.Abs(scoreDeficitTolerance);
-            evaluation.EnoughEnergy = _bb.myShip.Energy >= minimumEnergyForHunt;
-            evaluation.EnoughTime = _bb.timeLeft > captureFocusTimeThreshold;
-            evaluation.EnemyDistance = Vector2.Distance(_bb.myShip.Position, _bb.enemyShip.Position);
-            evaluation.EnemyCloseEnough = evaluation.EnemyDistance <= maxHuntDistance;
-            evaluation.EnemyAggressive = _bb.enemyAggressionIndex > enemyAggressionTolerance;
-            evaluation.LosingLateGame = _bb.timeLeft < captureFocusTimeThreshold && _bb.scoreLead < 0;
-            evaluation.EnoughEnergyForClutch = _bb.myShip.Energy >= minimumEnergyForHunt * clutchAggressionBoost;
+            ev.HasValidData = true;
+            ev.ComfortableLead = _bb.scoreLead >= overallLeadForHunt || _bb.waypointLead >= waypointLeadForHunt;
+            ev.AcceptableDeficit = _bb.scoreLead >= -Mathf.Abs(scoreDeficitTolerance);
+            ev.EnoughEnergy = _bb.myShip.Energy >= minimumEnergyForHunt;
+            ev.EnoughTime = _bb.timeLeft > captureFocusTimeThreshold;
+            ev.EnemyDistance = Vector2.Distance(_bb.myShip.Position, _bb.enemyShip.Position);
+            ev.EnemyCloseEnough = ev.EnemyDistance <= maxHuntDistance;
+            ev.EnemyAggressive = _bb.enemyAggressionIndex > enemyAggressionTolerance;
+            ev.LosingLateGame = _bb.timeLeft < captureFocusTimeThreshold && _bb.scoreLead < 0;
+            ev.EnoughEnergyForClutch = _bb.myShip.Energy >= minimumEnergyForHunt * clutchAggressionBoost;
+            ev.EnemyWeak = _bb.enemyShip.Energy <= enemyLowEnergyThreshold;
 
-            return evaluation;
+            Vector2 toEnemy = (_bb.enemyShip.Position - _bb.myShip.Position).normalized;
+            float closing = Vector2.Dot(_bb.enemyShip.Velocity.normalized, toEnemy);
+            ev.EnemyRunningAway = closing > 0.5f;
+
+            return ev;
         }
 
         protected struct CombatEvaluation
@@ -93,6 +102,8 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             public bool EnemyAggressive;
             public bool LosingLateGame;
             public bool EnoughEnergyForClutch;
+            public bool EnemyWeak;
+            public bool EnemyRunningAway;
             public float EnemyDistance;
         }
     }

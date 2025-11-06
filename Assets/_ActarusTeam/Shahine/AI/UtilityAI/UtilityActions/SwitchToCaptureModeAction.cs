@@ -19,29 +19,28 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
             _bb.RefreshScoreboard();
 
-            CombatEvaluation evaluation = EvaluateCombatSituation();
-            if (!evaluation.HasValidData)
+            var ev = EvaluateCombatSituation();
+            if (!ev.HasValidData)
                 return input;
 
-            if (ShouldSwitchToCapture(evaluation) && HasWaitedMinimumDuration())
-            {
+            if (ShouldSwitchToCapture(ev) && HasWaitedMinimumDuration())
                 _bb.SetCombatMode(Blackboard.CombatMode.Capture);
-            }
 
             return input;
         }
 
-        private bool ShouldSwitchToCapture(CombatEvaluation evaluation)
+        private bool ShouldSwitchToCapture(CombatEvaluation ev)
         {
-            if (evaluation.LosingLateGame)
-            {
-                return !evaluation.EnoughEnergyForClutch;
-            }
+            if (ev.LosingLateGame)
+                return !ev.EnoughEnergyForClutch;
 
-            if (!evaluation.ComfortableLead || !evaluation.EnoughEnergy || !evaluation.EnoughTime)
+            if (!ev.ComfortableLead || !ev.EnoughEnergy || !ev.EnoughTime)
                 return true;
 
-            if (evaluation.EnemyAggressive)
+            if (ev.EnemyAggressive)
+                return true;
+
+            if (_bb.waypointLead < waypointLeadForHunt)
                 return true;
 
             return false;

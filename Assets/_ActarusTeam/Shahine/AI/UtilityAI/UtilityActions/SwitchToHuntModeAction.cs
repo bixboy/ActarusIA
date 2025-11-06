@@ -19,31 +19,34 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             if (_bb.combatMode == Blackboard.CombatMode.Hunt)
                 return input;
 
-            CombatEvaluation evaluation = EvaluateCombatSituation();
-            if (!evaluation.HasValidData)
+            var ev = EvaluateCombatSituation();
+            if (!ev.HasValidData)
                 return input;
 
-            if (ShouldSwitchToHunt(evaluation) && HasWaitedMinimumDuration())
-            {
+            if (ShouldSwitchToHunt(ev) && HasWaitedMinimumDuration())
                 _bb.SetCombatMode(Blackboard.CombatMode.Hunt);
-            }
 
             return input;
         }
 
-        private bool ShouldSwitchToHunt(CombatEvaluation evaluation)
+        private bool ShouldSwitchToHunt(CombatEvaluation ev)
         {
-            if (evaluation.LosingLateGame)
-            {
-                return evaluation.EnoughEnergyForClutch;
-            }
+            if (ev.EnemyWeak)
+                return true;
 
-            return evaluation.ComfortableLead
-                   && evaluation.AcceptableDeficit
-                   && evaluation.EnoughEnergy
-                   && evaluation.EnoughTime
-                   && evaluation.EnemyCloseEnough
-                   && !evaluation.EnemyAggressive;
+            if (_bb.scoreLead < overallLeadForHunt + hysteresisMargin && _bb.waypointLead < waypointLeadForHunt + hysteresisMargin)
+                return false;
+
+            if (ev.LosingLateGame)
+                return ev.EnoughEnergyForClutch;
+
+            return ev.ComfortableLead
+                   && ev.AcceptableDeficit
+                   && ev.EnoughEnergy
+                   && ev.EnoughTime
+                   && ev.EnemyCloseEnough
+                   && !ev.EnemyAggressive
+                   && !ev.EnemyRunningAway;
         }
     }
 }
