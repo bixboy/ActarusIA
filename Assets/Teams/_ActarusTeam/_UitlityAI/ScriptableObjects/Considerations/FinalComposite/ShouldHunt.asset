@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f2de2be159c450c87728e7b841a1026, type: 3}
+  m_Name: ShouldHunt
+  m_EditorClassIdentifier: 
+  curve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  inputMin: 0
+  inputMax: 1
+  scoreMin: 0
+  scoreMax: 1
+  allMustBeNonZero: 1
+  considerations:
+  - {fileID: 11400000, guid: 81ed0846e5d987e40afb863871128a12, type: 2}
+  - {fileID: 11400000, guid: 2c364babcd4d2ef4c92b1533a6692ced, type: 2}
+  - {fileID: 11400000, guid: 1c8bd64570f1e4e4e8907497616c9629, type: 2}
+  - {fileID: 11400000, guid: 5570c436497c1ec4fb51ba027b38cad0, type: 2}
+  - {fileID: 11400000, guid: e89a920d5c30c224f93d215efc7c4678, type: 2}

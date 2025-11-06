@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3b27bbacb0ad43789b2b4aa5036bfab7, type: 3}
+  m_Name: DistToWaypoint_Hunt
+  m_EditorClassIdentifier: 
+  curve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  inputMin: 0
+  inputMax: 1
+  scoreMin: 0
+  scoreMax: 1
+  allMustBeNonZero: 1
+  operation: 4
+  considerations:
+    FirstConsideration: {fileID: 11400000, guid: 7bb01194522c10f4eb945706f8123b87,
+      type: 2}
+    SecondConsideration: {fileID: 11400000, guid: ad499d6f661f4124a80ad445c2956065,
+      type: 2}
