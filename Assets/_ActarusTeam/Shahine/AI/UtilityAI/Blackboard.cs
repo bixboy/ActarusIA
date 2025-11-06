@@ -136,12 +136,11 @@ namespace Teams.ActarusController.Shahine
             MyEnergyLeft = MyShip.Energy;
             TimeLeft = data.timeLeft;
             
-            if (TargetWaypoint == null || TargetWaypoint.Owner == MyShip.Owner)
             RefreshScoreboard();
-
+            
+            if (TargetWaypoint == null || TargetWaypoint.Owner == MyShip.Owner)
             {
                 LastWayPoint = TargetWaypoint;
-                
                 
                 if (UseOldWaypointSystemPriority)
                 {
@@ -172,17 +171,21 @@ namespace Teams.ActarusController.Shahine
 
         public WayPointView GetNearestWaypoint(Vector2 from)
         {
-            return waypoints.Where(w => w.Owner != myShip.Owner).OrderBy(w => Vector2.Distance(from, w.Position)).FirstOrDefault();
+            return Waypoints
+                .Where(w => w.Owner != MyShip.Owner)
+                .OrderBy(w => Vector2.Distance(from, w.Position))
+                .FirstOrDefault();;
         }
         
         
         public WayPointView GetNextWayPoint()
         {
-            Vector2 currentVelocity = myShip.Velocity.sqrMagnitude > 0.01f ? myShip.Velocity.normalized : (targetWaypoint.Position - myShip.Position).normalized;
+            Vector2 currentVelocity = MyShip.Velocity.sqrMagnitude > 0.01f ? MyShip.Velocity.normalized : (TargetWaypoint.Position - MyShip.Position).normalized;
 
             Vector2 currentTargetPos = TargetWaypoint.Position;
             
-                .Where(w => w != targetWaypoint && w.Owner != myShip.Owner)                
+            return Waypoints
+                .Where(w => w != TargetWaypoint && w.Owner != MyShip.Owner)                
                 .OrderByDescending(w =>
                 {
                     float distScore = 1f - Mathf.Clamp01(Vector2.Distance(currentTargetPos, w.Position) / 10f);
@@ -265,10 +268,16 @@ namespace Teams.ActarusController.Shahine
             
             return AimingHelpers.CanHit(MyShip, enemyPos, EnemyShip.Velocity, hitTimeTolerance);
         }
-        
+
         public static bool IsPointInCone(Vector2 origin, Vector2 direction, Vector2 point, float angleDeg)
         {
             Vector2 toPoint = (point - origin).normalized;
+
+            float dot = Vector2.Dot(direction.normalized, toPoint);
+            float halfAngle = angleDeg * 0.5f;
+
+            return dot > Mathf.Cos(halfAngle * Mathf.Deg2Rad);
+        }
 
         public void SetCombatMode(CombatMode mode)
         {
@@ -285,7 +294,7 @@ namespace Teams.ActarusController.Shahine
             waypointLead = myShip.WaypointScore - enemyShip.WaypointScore;
             hitLead = myShip.HitScore - enemyShip.HitScore;
         }
-        
+
         public void UpdateEnemyBehavior()
         {
             if (myShip == null || enemyShip == null)
@@ -308,8 +317,5 @@ namespace Teams.ActarusController.Shahine
                 enemyAggressionIndex = Mathf.Lerp(enemyAggressionIndex, 0f, 0.02f);
             }
         }
-
-
-
     }
 }
