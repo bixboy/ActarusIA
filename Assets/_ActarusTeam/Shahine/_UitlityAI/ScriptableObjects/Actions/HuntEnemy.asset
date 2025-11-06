@@ -22,7 +22,7 @@ MonoBehaviour:
   waypointBias: 1.35
   enemyWaypointBias: 2.5
   neutralWaypointBias: 1.1
-  shootAngleTolerance: 12
   predictiveHitTolerance: 0.2
+  shootAngleTolerance: 12
   shockwaveDistance: 1.75
   mineDropDistance: 1.5

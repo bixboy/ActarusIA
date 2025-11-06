@@ -21,8 +21,8 @@ namespace UtilityAI
         [SerializeField] private float neutralWaypointBias = 1.1f;
 
         [Header("Weapons")]
-        [SerializeField, Range(1f, 20f)] private float shootAngleTolerance = 12f;
         [SerializeField, Range(0.05f, 0.6f)] private float predictiveHitTolerance = 0.2f;
+        [SerializeField, Range(1f, 20f)] private float shootAngleTolerance = 12f;
         [SerializeField, Range(0.5f, 3f)] private float shockwaveDistance = 1.75f;
         [SerializeField, Range(0.5f, 3f)] private float mineDropDistance = 1.5f;
 
@@ -30,8 +30,6 @@ namespace UtilityAI
         {
             InputData input = new InputData();
             
-            Debug.Log("eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee");
-
             var controller = context.ControllerUtilityAI;
             var myShip = context.GetData<SpaceShipView>("MyShip");
             var enemy = context.GetData<SpaceShipView>("EnemyShip");
@@ -55,9 +53,16 @@ namespace UtilityAI
                 context.SetData("HuntFocusWaypoint", null);
             }
 
+            bool hasPredictiveShot = TryComputePredictiveShot(myShip, enemy, out Vector2 interceptPoint, out float predictiveOrientation);
+
+            if (hasPredictiveShot)
+                pursuitPoint = interceptPoint;
+
             context.SetData("HuntTargetPoint", pursuitPoint);
 
-            float targetOrientation = ComputeTargetOrientation(myShip, pursuitPoint);
+            float targetOrientation = hasPredictiveShot
+                ? predictiveOrientation
+                : ComputeTargetOrientation(myShip, pursuitPoint);
             input.targetOrientation = targetOrientation;
 
             float angleDiff = Mathf.Abs(Mathf.DeltaAngle(myShip.Orientation, targetOrientation));
@@ -66,9 +71,11 @@ namespace UtilityAI
             else
                 input.thrust = 0f;
 
-            bool hasPredictiveShot = AimingHelpers.CanHit(myShip, enemy.Position, enemy.Velocity, predictiveHitTolerance);
-            bool hasDirectShot = AimingHelpers.CanHit(myShip, enemy.Position, shootAngleTolerance);
-            input.shoot = hasPredictiveShot || hasDirectShot;
+            if (hasPredictiveShot && angleDiff <= shootAngleTolerance && myShip.Energy >= myShip.ShootEnergyCost &&
+                AimingHelpers.CanHit(myShip, enemy.Position, enemy.Velocity, predictiveHitTolerance))
+            {
+                input.shoot = true;
+            }
 
             float distanceToEnemy = Vector2.Distance(myShip.Position, enemy.Position);
 
@@ -136,6 +143,76 @@ namespace UtilityAI
             }
 
             return AimingHelpers.ComputeSteeringOrient(myShip, targetPosition, pursuitOvershoot);
+        }
+
+        private bool TryComputePredictiveShot(SpaceShipView myShip, SpaceShipView enemy, out Vector2 interceptPoint, out float interceptOrientation)
+        {
+            interceptPoint = enemy.Position;
+            interceptOrientation = myShip.Orientation;
+
+            if (myShip == null || enemy == null)
+                return false;
+
+            Vector2 shooterPos = myShip.Position;
+            Vector2 targetPos = enemy.Position;
+            Vector2 targetVel = enemy.Velocity;
+            Vector2 relativePos = targetPos - shooterPos;
+
+            float bulletSpeed = Bullet.Speed;
+            float a = targetVel.sqrMagnitude - bulletSpeed * bulletSpeed;
+            float b = 2f * Vector2.Dot(relativePos, targetVel);
+            float c = relativePos.sqrMagnitude;
+
+            const float epsilon = 1e-5f;
+            float time;
+
+            if (Mathf.Abs(a) < epsilon)
+            {
+                if (Mathf.Abs(b) < epsilon)
+                {
+                    if (c < epsilon)
+                        return false;
+
+                    time = Mathf.Sqrt(c) / bulletSpeed;
+                }
+                else
+                {
+                    time = -c / b;
+                    if (time < 0f)
+                        return false;
+                }
+            }
+            else
+            {
+                float discriminant = b * b - 4f * a * c;
+                if (discriminant < 0f)
+                    return false;
+
+                float sqrtDiscriminant = Mathf.Sqrt(discriminant);
+                float t1 = (-b + sqrtDiscriminant) / (2f * a);
+                float t2 = (-b - sqrtDiscriminant) / (2f * a);
+
+                time = float.PositiveInfinity;
+
+                if (t1 > 0f)
+                    time = Mathf.Min(time, t1);
+                if (t2 > 0f)
+                    time = Mathf.Min(time, t2);
+
+                if (!float.IsFinite(time) || time == float.PositiveInfinity)
+                    return false;
+            }
+
+            if (time > maxPredictionTime)
+                return false;
+
+            interceptPoint = targetPos + targetVel * time;
+            Vector2 toIntercept = interceptPoint - shooterPos;
+            if (toIntercept.sqrMagnitude < epsilon)
+                return false;
+
+            interceptOrientation = Mathf.Atan2(toIntercept.y, toIntercept.x) * Mathf.Rad2Deg;
+            return true;
         }
 
         private WayPointView SelectInterceptionWaypoint(Context context, SpaceShipView myShip, SpaceShipView enemy, Vector2 pursuitPoint)

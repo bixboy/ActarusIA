@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using DoNotModify;
 using NaughtyAttributes;
 using Teams.ActarusController.Shahine;
@@ -7,15 +8,22 @@ using UnityEngine;
 namespace UtilityAI
 {
     [CreateAssetMenu(menuName = "UtilityAI/AIAction/CaptureWaypoints")]
-    public class CaptureWaypoints : AIAction
-    {
-        public float borderValue = 0.9f;
-        public float breakDistance = 1.25f;
-        private bool _isFirstFrame = true;
+        public class CaptureWaypoints : AIAction
+        {
+            public float borderValue = 0.9f;
+            public float breakDistance = 1.25f;
+            private bool _isFirstFrame = true;
 
-        [MinMaxSlider(0.1f, 1.8f)] public Vector2 MinMaxOvershoot = new Vector2(0.9f, 1.35f);
-        // Optionnel : pénalité de proximité (réduit l’overshoot quand on est très proche)
-        [SerializeField, Range(0f, 0.5f)] private float proximityPenalty = 0.2f;
+            [MinMaxSlider(0.1f, 1.8f)] public Vector2 MinMaxOvershoot = new Vector2(0.9f, 1.35f);
+            // Optionnel : pénalité de proximité (réduit l’overshoot quand on est très proche)
+            [SerializeField, Range(0f, 0.5f)] private float proximityPenalty = 0.2f;
+
+            [Header("Combat")]
+            [SerializeField, Range(1f, 30f)] private float captureShootAngle = 8f;
+            [SerializeField, Range(0.05f, 0.6f)] private float capturePredictiveTolerance = 0.25f;
+            [SerializeField, Range(1f, 12f)] private float mineShootDistance = 6f;
+            [SerializeField, Range(1f, 45f)] private float mineShootAngle = 12f;
+            [SerializeField, Range(1f, 90f)] private float mineApproachAlignmentAngle = 35f;
         
 
         public override InputData Execute(Context context)
@@ -70,8 +78,13 @@ namespace UtilityAI
             else
                 input.thrust = 0f;
 
+            bool shootEnemy = ShouldShootEnemyInCapture(myShip, context.GetData<SpaceShipView>("EnemyShip"));
+            bool shootMine = ShouldShootMineAlongPath(context, myShip);
+
+            input.shoot = shootEnemy || shootMine;
+
             DrawActionGizmos(context);
-            
+
             return input;
         }
 
@@ -106,6 +119,74 @@ namespace UtilityAI
         {
             float k = ComputeContextOvershoot(ship, targetPosition);
             return AimingHelpers.ComputeSteeringOrient(ship, targetPosition, k);
+        }
+
+
+        private bool ShouldShootEnemyInCapture(SpaceShipView myShip, SpaceShipView enemy)
+        {
+            if (myShip == null || enemy == null)
+                return false;
+
+            if (myShip.Energy < myShip.ShootEnergyCost)
+                return false;
+
+            Vector2 toEnemy = enemy.Position - myShip.Position;
+            if (toEnemy.sqrMagnitude <= Mathf.Epsilon)
+                return false;
+
+            Vector2 lookDir = myShip.LookAt.normalized;
+            float angleToEnemy = Vector2.Angle(lookDir, toEnemy);
+            if (angleToEnemy > captureShootAngle)
+                return false;
+
+            return AimingHelpers.CanHit(myShip, enemy.Position, enemy.Velocity, capturePredictiveTolerance);
+        }
+
+
+        private bool ShouldShootMineAlongPath(Context context, SpaceShipView myShip)
+        {
+            if (context == null || myShip == null)
+                return false;
+
+            if (myShip.Energy < myShip.ShootEnergyCost)
+                return false;
+
+            var mines = context.GetData<List<MineView>>("Mines");
+            if (mines == null || mines.Count == 0)
+                return false;
+
+            Vector2 lookDir = myShip.LookAt.normalized;
+            bool hasVelocity = myShip.Velocity.sqrMagnitude > 0.05f;
+            Vector2 moveDir = hasVelocity ? myShip.Velocity.normalized : lookDir;
+
+            foreach (MineView mine in mines)
+            {
+                if (mine == null)
+                    continue;
+
+                Vector2 toMine = mine.Position - myShip.Position;
+                float sqrDistance = toMine.sqrMagnitude;
+                if (sqrDistance <= Mathf.Epsilon)
+                    continue;
+
+                if (sqrDistance > mineShootDistance * mineShootDistance)
+                    continue;
+
+                float angleToMine = Vector2.Angle(lookDir, toMine);
+                if (angleToMine > mineShootAngle)
+                    continue;
+
+                float approachAngle = Vector2.Angle(moveDir, toMine);
+                if (approachAngle > mineApproachAlignmentAngle)
+                    continue;
+
+                if (!AimingHelpers.CanHit(myShip, mine.Position, mineShootAngle))
+                    continue;
+
+                return true;
+            }
+
+            return false;
         }
 
 
