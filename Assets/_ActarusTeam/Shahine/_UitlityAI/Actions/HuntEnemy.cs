@@ -46,19 +46,24 @@ namespace UtilityAI
             WayPointView captureLock = UpdateCaptureLock(context, myShip, enemy);
 
             Vector2 pursuitPoint = ComputePursuitPoint(myShip, enemy);
-            WayPointView interceptionWaypoint = captureLock != null
-                ? captureLock
-                : SelectInterceptionWaypoint(context, myShip, enemy, pursuitPoint);
+            WayPointView focusWaypoint = null;
 
-            if (interceptionWaypoint != null)
+            if (captureLock != null)
             {
-                pursuitPoint = interceptionWaypoint.Position;
-                context.SetData("HuntFocusWaypoint", interceptionWaypoint);
+                pursuitPoint = ComputeCaptureIntercept(captureLock, enemy, pursuitPoint);
+                focusWaypoint = captureLock;
             }
             else
             {
-                context.SetData("HuntFocusWaypoint", null);
+                WayPointView interceptionWaypoint = SelectInterceptionWaypoint(context, myShip, enemy, pursuitPoint);
+                if (interceptionWaypoint != null)
+                {
+                    pursuitPoint = BlendPursuitWithWaypoint(interceptionWaypoint, enemy, pursuitPoint);
+                    focusWaypoint = interceptionWaypoint;
+                }
             }
+
+            context.SetData("HuntFocusWaypoint", focusWaypoint);
 
             bool hasPredictiveShot = TryComputePredictiveShot(myShip, enemy, out Vector2 interceptPoint, out float predictiveOrientation);
 
@@ -73,10 +78,12 @@ namespace UtilityAI
             input.targetOrientation = targetOrientation;
 
             float angleDiff = Mathf.Abs(Mathf.DeltaAngle(myShip.Orientation, targetOrientation));
+            float pursuitThrottle = Mathf.Lerp(0.6f, 1f, Mathf.Clamp01(1f - angleDiff / 150f));
+
             if (angleDiff < thrustAlignmentAngle)
-                input.thrust = Mathf.Lerp(0.4f, 1f, 1f - angleDiff / thrustAlignmentAngle);
-            else
-                input.thrust = Mathf.Lerp(0.1f, 0.35f, Mathf.Clamp01(1f - angleDiff / 180f));
+                pursuitThrottle = Mathf.Max(pursuitThrottle, Mathf.Lerp(0.85f, 1f, 1f - angleDiff / thrustAlignmentAngle));
+
+            input.thrust = Mathf.Clamp01(pursuitThrottle);
 
             if (hasPredictiveShot && angleDiff <= shootAngleTolerance && myShip.Energy >= myShip.ShootEnergyCost &&
                 AimingHelpers.CanHit(myShip, enemy.Position, enemy.Velocity, predictiveHitTolerance))
@@ -85,6 +92,8 @@ namespace UtilityAI
             }
 
             float distanceToEnemy = Vector2.Distance(myShip.Position, enemy.Position);
+            float distanceBoost = Mathf.Clamp01(distanceToEnemy / 10f);
+            input.thrust = Mathf.Max(input.thrust, Mathf.Lerp(0.75f, 1f, distanceBoost));
 
             if (distanceToEnemy <= shockwaveDistance && myShip.Energy >= myShip.ShockwaveEnergyCost)
                 input.fireShockwave = true;
@@ -304,6 +313,49 @@ namespace UtilityAI
             }
 
             return bestWaypoint;
+        }
+
+        private Vector2 ComputeCaptureIntercept(WayPointView waypoint, SpaceShipView enemy, Vector2 pursuitPoint)
+        {
+            Vector2 center = waypoint.Position;
+            float radius = Mathf.Max(waypoint.Radius, 0.5f);
+            float threatRadius = Mathf.Max(radius * captureLockRadiusMultiplier, radius + 1f);
+
+            if (enemy == null)
+                return center;
+
+            Vector2 toEnemy = enemy.Position - center;
+            float enemyDistance = toEnemy.magnitude;
+
+            if (enemyDistance < Mathf.Epsilon)
+            {
+                Vector2 fallbackDir = pursuitPoint - center;
+                if (fallbackDir.sqrMagnitude < Mathf.Epsilon)
+                    fallbackDir = Vector2.right;
+
+                return center + fallbackDir.normalized * threatRadius;
+            }
+
+            float clampedDistance = Mathf.Clamp(enemyDistance, radius * 0.85f, threatRadius);
+            return center + toEnemy.normalized * clampedDistance;
+        }
+
+        private Vector2 BlendPursuitWithWaypoint(WayPointView waypoint, SpaceShipView enemy, Vector2 pursuitPoint)
+        {
+            if (waypoint == null)
+                return pursuitPoint;
+
+            float threatRadius = Mathf.Max(waypoint.Radius * captureLockRadiusMultiplier, waypoint.Radius + 1f);
+            float blend = 0.35f;
+
+            if (enemy != null)
+            {
+                float enemyDistance = Vector2.Distance(enemy.Position, waypoint.Position);
+                float proximity = 1f - Mathf.Clamp01(enemyDistance / (threatRadius * 1.25f));
+                blend = Mathf.Lerp(blend, 0.65f, proximity);
+            }
+
+            return Vector2.Lerp(pursuitPoint, waypoint.Position, blend);
         }
 
         private WayPointView FindEnemyCaptureWaypoint(Context context, SpaceShipView myShip, SpaceShipView enemy)
