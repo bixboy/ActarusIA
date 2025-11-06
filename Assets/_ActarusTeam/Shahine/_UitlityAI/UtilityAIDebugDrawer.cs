@@ -41,15 +41,29 @@ namespace UtilityAI
             _instance._currentDrawCallback = drawCallback;
             _instance._lastFrameDrawn = Time.frameCount;
         }
+        
+        public static void DrawPersistent(Action drawCallback)
+        {
+            if (_instance == null)
+            {
+                GameObject go = new GameObject("[UtilityAIDebugDrawer]");
+                go.hideFlags = HideFlags.HideAndDontSave;
+                _instance = go.AddComponent<UtilityAIDebugDrawer>();
+            }
+
+            _instance._currentDrawCallback = drawCallback;
+            _instance._lastFrameDrawn = -1; // désactive le test par frame
+        }
 
 #if UNITY_EDITOR
         private void OnDrawGizmos()
         {
-            if (Time.frameCount == _lastFrameDrawn && _currentDrawCallback != null)
+            if ((_lastFrameDrawn == -1 || Time.frameCount == _lastFrameDrawn) && _currentDrawCallback != null)
             {
                 _currentDrawCallback.Invoke();
             }
         }
+
 #endif
     }
 }

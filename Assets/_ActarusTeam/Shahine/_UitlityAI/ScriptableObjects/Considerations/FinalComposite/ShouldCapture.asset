@@ -1,0 +1,49 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4f2de2be159c450c87728e7b841a1026, type: 3}
+  m_Name: ShouldCapture
+  m_EditorClassIdentifier: 
+  curve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 1
+      outSlope: 1
+      tangentMode: 34
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  inputMin: 0
+  inputMax: 1
+  scoreMin: 0
+  scoreMax: 1
+  allMustBeNonZero: 1
+  considerations:
+  - {fileID: 11400000, guid: 992a8ed12801a424f8ba24045355b225, type: 2}
+  - {fileID: 11400000, guid: 96c2d641c8eace9499023ede2a940547, type: 2}
+  - {fileID: 11400000, guid: cf4bad0bfa725a64db43eb5fc5c48347, type: 2}
+  - {fileID: 11400000, guid: 843b7c9c7419e3a4494f1ed1cc15106b, type: 2}
+  - {fileID: 11400000, guid: 907578eb257e52641b770b8f7549aeb0, type: 2}

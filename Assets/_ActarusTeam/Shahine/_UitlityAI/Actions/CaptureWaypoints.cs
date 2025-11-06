@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Reflection;
 using DoNotModify;
 using NaughtyAttributes;
 using Teams.ActarusController.Shahine;
@@ -25,7 +26,12 @@ namespace UtilityAI
             [SerializeField, Range(1f, 45f)] private float mineShootAngle = 12f;
             [SerializeField, Range(1f, 90f)] private float mineApproachAlignmentAngle = 35f;
         
+            private readonly HashSet<WayPointView> _minedWaypoints = new();
 
+            private static readonly FieldInfo BulletViewBulletField = typeof(BulletView).GetField("_bullet", BindingFlags.NonPublic | BindingFlags.Instance);
+            private static readonly FieldInfo BulletOwnerField = typeof(Bullet).GetField("_owner", BindingFlags.NonPublic | BindingFlags.Instance);
+            private static readonly FieldInfo ShockwaveOwnerField = typeof(Shockwave).GetField("_owner", BindingFlags.NonPublic | BindingFlags.Instance);
+            
         public override InputData Execute(Context context)
         {
             InputData input = new InputData();
@@ -38,6 +44,32 @@ namespace UtilityAI
 
             if (targetWaypoint == null || myShip == null)
                 return input;
+            
+            CleanupFriendlyMinedWaypoints(myShip);
+
+            if (ShouldCounterEnemyShockwave(myShip))
+            {
+                input.fireShockwave = true;
+                input.targetOrientation = myShip.Orientation;
+                input.thrust = 0f;
+                return input;
+            }
+
+            if (ShouldShockwaveForMineCollision(context, myShip))
+            {
+                input.fireShockwave = true;
+                input.targetOrientation = myShip.Orientation;
+                input.thrust = 0f;
+                return input;
+            }
+
+            if (ShouldShockwaveForProjectile(context, myShip))
+            {
+                input.fireShockwave = true;
+                input.targetOrientation = myShip.Orientation;
+                input.thrust = 0f;
+                return input;
+            }
 
             if (context.ControllerUtilityAI != null &&
                 context.ControllerUtilityAI.CurrentCombatMode != ActarusControllerUtilityAI.CombatMode.Capture)
@@ -80,6 +112,12 @@ namespace UtilityAI
 
             bool shootEnemy = ShouldShootEnemyInCapture(myShip, context.GetData<SpaceShipView>("EnemyShip"));
             bool shootMine = ShouldShootMineAlongPath(context, myShip);
+            bool shootWaypointMine = ShouldShootMineOnWaypoint(context, myShip, targetWaypoint);
+
+            input.shoot = shootEnemy || shootMine || shootWaypointMine;
+
+            if (ShouldDropMineOnCapturedWaypoint(context, myShip))
+                input.dropMine = true;
 
             input.shoot = shootEnemy || shootMine;
 
@@ -163,6 +201,9 @@ namespace UtilityAI
             {
                 if (mine == null)
                     continue;
+                
+                if (_minedWaypoints.Count > 0 && IsMineNearFriendlyWaypoint(mine))
+                    continue;
 
                 Vector2 toMine = mine.Position - myShip.Position;
                 float sqrDistance = toMine.sqrMagnitude;
@@ -189,6 +230,259 @@ namespace UtilityAI
             return false;
         }
 
+                private bool ShouldShootMineOnWaypoint(Context context, SpaceShipView myShip, WayPointView waypoint)
+        {
+            if (context == null || myShip == null || waypoint == null)
+                return false;
+
+            if (myShip.Energy < myShip.ShootEnergyCost)
+                return false;
+
+            var mines = context.GetData<List<MineView>>("Mines");
+            if (mines == null || mines.Count == 0)
+                return false;
+
+            foreach (var mine in mines)
+            {
+                if (mine == null)
+                    continue;
+
+                if (_minedWaypoints.Count > 0 && IsMineNearFriendlyWaypoint(mine))
+                    continue;
+
+                if (!mine.IsActive)
+                    continue;
+
+                float waypointRadius = waypoint.Radius + mine.BulletHitRadius;
+                if (Vector2.Distance(mine.Position, waypoint.Position) > waypointRadius)
+                    continue;
+
+                if (!AimingHelpers.CanHit(myShip, mine.Position, mineShootAngle))
+                    continue;
+
+                return true;
+            }
+
+            return false;
+        }
+
+
+        private bool ShouldDropMineOnCapturedWaypoint(Context context, SpaceShipView myShip)
+        {
+            if (context == null || myShip == null)
+                return false;
+
+            var lastWaypoint = context.GetData<WayPointView>("LastWaypoint");
+            if (lastWaypoint == null)
+                return false;
+
+            if (_minedWaypoints.Contains(lastWaypoint) && lastWaypoint.Owner != myShip.Owner)
+                _minedWaypoints.Remove(lastWaypoint);
+
+            if (_minedWaypoints.Contains(lastWaypoint))
+                return false;
+
+            if (lastWaypoint.Owner != myShip.Owner)
+                return false;
+
+            if (myShip.Energy < myShip.MineEnergyCost + myShip.ShockwaveEnergyCost)
+                return false;
+
+            _minedWaypoints.Add(lastWaypoint);
+            return true;
+        }
+
+
+        private bool ShouldCounterEnemyShockwave(SpaceShipView myShip)
+        {
+            if (myShip == null)
+                return false;
+
+            if (myShip.Energy < myShip.ShockwaveEnergyCost)
+                return false;
+
+            var shockwaves = GameObject.FindGameObjectsWithTag("Shockwave");
+            foreach (var shockwaveObj in shockwaves)
+            {
+                if (shockwaveObj == null)
+                    continue;
+
+                var shockwave = shockwaveObj.GetComponent<Shockwave>();
+                if (shockwave == null)
+                    continue;
+
+                if (ShockwaveOwnerField != null)
+                {
+                    int owner = (int)ShockwaveOwnerField.GetValue(shockwave);
+                    if (owner == myShip.Owner)
+                        continue;
+                }
+
+                float radius = GetCircleRadius(shockwaveObj);
+                if (radius <= 0f)
+                    continue;
+
+                float distance = Vector2.Distance(myShip.Position, (Vector2)shockwaveObj.transform.position);
+                if (distance <= radius + myShip.Radius * 0.25f)
+                    return true;
+            }
+
+            return false;
+        }
+
+
+        private bool ShouldShockwaveForMineCollision(Context context, SpaceShipView myShip)
+        {
+            if (context == null || myShip == null)
+                return false;
+
+            if (myShip.Energy < myShip.ShockwaveEnergyCost)
+                return false;
+
+            var mines = context.GetData<List<MineView>>("Mines");
+            if (mines == null || mines.Count == 0)
+                return false;
+
+            foreach (var mine in mines)
+            {
+                if (mine == null)
+                    continue;
+
+                if (!mine.IsActive)
+                    continue;
+
+                if (_minedWaypoints.Count > 0 && IsMineNearFriendlyWaypoint(mine))
+                    continue;
+
+                Vector2 toMine = mine.Position - myShip.Position;
+                float sqrDistance = toMine.sqrMagnitude;
+                if (sqrDistance <= Mathf.Epsilon)
+                    continue;
+
+                Vector2 velocity = myShip.Velocity;
+                if (velocity.sqrMagnitude < 0.0001f)
+                    continue;
+
+                float approach = Vector2.Dot(velocity.normalized, toMine.normalized);
+                if (approach <= 0.95f)
+                    continue;
+
+                float t = Vector2.Dot(toMine, velocity) / velocity.sqrMagnitude;
+                if (t < 0f)
+                    continue;
+
+                Vector2 closestPoint = myShip.Position + velocity * t;
+                float closestDistance = Vector2.Distance(closestPoint, mine.Position);
+                float dangerRadius = mine.ExplosionRadius * 0.9f;
+                if (closestDistance <= dangerRadius)
+                {
+                    float angle = Vector2.Angle(myShip.LookAt, toMine);
+                    if (angle > mineShootAngle)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+
+        private bool ShouldShockwaveForProjectile(Context context, SpaceShipView myShip)
+        {
+            if (context == null || myShip == null)
+                return false;
+
+            if (myShip.Energy < myShip.ShockwaveEnergyCost * 2f)
+                return false;
+
+            var bullets = context.GetData<List<BulletView>>("Bullets");
+            if (bullets == null || bullets.Count == 0)
+                return false;
+
+            foreach (var bulletView in bullets)
+            {
+                if (bulletView == null)
+                    continue;
+
+                if (!IsBulletEnemy(bulletView, myShip.Owner))
+                    continue;
+
+                Vector2 toShip = myShip.Position - bulletView.Position;
+                if (Vector2.Dot(bulletView.Velocity, toShip) <= 0f)
+                    continue;
+
+                Vector2 relativePosition = bulletView.Position - myShip.Position;
+                Vector2 relativeVelocity = bulletView.Velocity - myShip.Velocity;
+
+                if (relativeVelocity.sqrMagnitude < Mathf.Epsilon)
+                    continue;
+
+                float dot = Vector2.Dot(relativePosition, relativeVelocity);
+                if (dot >= 0f)
+                    continue;
+
+                float t = -dot / relativeVelocity.sqrMagnitude;
+                if (t < 0f)
+                    continue;
+
+                Vector2 closestPoint = relativePosition + relativeVelocity * t;
+                if (closestPoint.magnitude <= myShip.Radius * 0.9f)
+                    return true;
+            }
+
+            return false;
+        }
+
+
+        private static float GetCircleRadius(GameObject obj)
+        {
+            var collider = obj.GetComponent<CircleCollider2D>();
+            if (collider == null)
+                collider = obj.GetComponentInChildren<CircleCollider2D>();
+
+            if (collider == null)
+                return 0f;
+
+            return collider.radius * Mathf.Abs(collider.transform.lossyScale.x);
+        }
+
+
+        private bool IsMineNearFriendlyWaypoint(MineView mine)
+        {
+            foreach (var waypoint in _minedWaypoints)
+            {
+                if (waypoint == null)
+                    continue;
+
+                float friendlyRadius = waypoint.Radius + mine.BulletHitRadius;
+                if (Vector2.Distance(mine.Position, waypoint.Position) <= friendlyRadius)
+                    return true;
+            }
+
+            return false;
+        }
+
+
+        private static bool IsBulletEnemy(BulletView bulletView, int myOwner)
+        {
+            if (BulletViewBulletField == null || BulletOwnerField == null)
+                return true;
+
+            var bullet = BulletViewBulletField.GetValue(bulletView) as Bullet;
+            if (bullet == null)
+                return true;
+
+            int owner = (int)BulletOwnerField.GetValue(bullet);
+            return owner != myOwner;
+        }
+
+
+        private void CleanupFriendlyMinedWaypoints(SpaceShipView myShip)
+        {
+            if (myShip == null || _minedWaypoints.Count == 0)
+                return;
+
+            _minedWaypoints.RemoveWhere(waypoint => waypoint == null || waypoint.Owner != myShip.Owner);
+        }
 
         private float CrossProduct(Vector2 v1, Vector2 v2)
         {
@@ -235,7 +529,7 @@ namespace UtilityAI
             var nextWaypoint = context.GetData<WayPointView>("NextWaypoint");
             var angleTolerance = context.GetData<float>("AngleTolerance");
             var distanceToTarget = context.GetData<float>("DistanceToTarget");
-            UtilityAIDebugDrawer.DrawThisFrame(() =>
+            UtilityAIDebugDrawer.DrawPersistent(() =>
             {
                 Vector2 shipPos = myShip.Position;
                 Vector2 entry = ComputeEntryPoint(myShip, targetWaypoint, nextWaypoint);

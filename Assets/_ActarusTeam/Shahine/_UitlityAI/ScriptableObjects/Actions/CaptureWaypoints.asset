@@ -12,9 +12,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8eb23d342b7e44d5b14a1509debab8d3, type: 3}
   m_Name: CaptureWaypoints
   m_EditorClassIdentifier: 
-  targetTag: WayPoint
   consideration: {fileID: 11400000, guid: 32cfdfa068c9f8046b18ffbf602b55a7, type: 2}
   borderValue: 0.9
   breakDistance: 1.25
   MinMaxOvershoot: {x: 0.9, y: 1.35}
   proximityPenalty: 0.2
+  captureShootAngle: 8
+  capturePredictiveTolerance: 0.25
+  mineShootDistance: 6
+  mineShootAngle: 12
+  mineApproachAlignmentAngle: 35

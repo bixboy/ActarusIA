@@ -73,19 +73,33 @@ namespace Teams.ActarusController.Shahine
             _waypointSystem = new WaypointPrioritySystem();
 
             // --- Initialisation des données contextuelles ---
+            // --- Constantes ---
             context.SetData("MyShip", spaceship);
             context.SetData("EnemyShip", _enemyShip);
             context.SetData("Waypoints", data.WayPoints);
+            context.SetData("WaypointsCount", data.WayPoints.Count); 
             context.SetData("Asteroids", data.Asteroids);
+            
+            // --- Dynamiques ---
             context.SetData("Mines", data.Mines);
             context.SetData("Bullets", data.Bullets);
 
             context.SetData("MyScore", spaceship.Score);
+            context.SetData("MyWaypointScore", spaceship.WaypointScore);
+            context.SetData("MyHitScore", spaceship.HitScore);
+            context.SetData("MyHitCount", spaceship.HitCount);
+            
             context.SetData("EnemyScore", _enemyShip.Score);
+            context.SetData("EnemyWaypointScore", _enemyShip.WaypointScore);
+            context.SetData("EnemyHitScore", _enemyShip.HitScore);
+            context.SetData("EnemyHitCount", _enemyShip.HitCount);
+            
             context.SetData("ScoreLead", spaceship.Score - _enemyShip.Score);
             context.SetData("MyEnergyLeft", spaceship.Energy);
             context.SetData("EnemyEnergyLeft", _enemyShip.Energy);
             context.SetData("TimeLeft", data.timeLeft);
+            
+            
             SetCombatMode(initialCombatMode, true);
             if (combatModeSwitchCooldown > 0f)
                 _lastCombatModeChangeTime = Mathf.Max(0f, Time.time - combatModeSwitchCooldown);
@@ -142,12 +156,26 @@ namespace Teams.ActarusController.Shahine
             int enemyScore = _enemyShip.Score;
             int scoreLead = myScore - enemyScore;
 
-            context.SetData("MyScore", myScore);
-            context.SetData("EnemyScore", enemyScore);
+            // --- Dynamiques ---
+            context.SetData("Mines", data.Mines);
+            context.SetData("Bullets", data.Bullets);
+
+            context.SetData("MyScore", spaceship.Score);
+            context.SetData("MyWaypointScore", spaceship.WaypointScore);
+            context.SetData("MyHitScore", spaceship.HitScore);
+            context.SetData("MyHitCount", spaceship.HitCount);
+            
+            context.SetData("EnemyScore", _enemyShip.Score);
+            context.SetData("EnemyWaypointScore", _enemyShip.WaypointScore);
+            context.SetData("EnemyHitScore", _enemyShip.HitScore);
+            context.SetData("EnemyHitCount", _enemyShip.HitCount);
+            
             context.SetData("ScoreLead", scoreLead);
             context.SetData("MyEnergyLeft", spaceship.Energy);
             context.SetData("EnemyEnergyLeft", _enemyShip.Energy);
             context.SetData("TimeLeft", data.timeLeft);
+            
+            
 
             // Position et distances
             float enemyDistance = Vector2.Distance(spaceship.Position, _enemyShip.Position);

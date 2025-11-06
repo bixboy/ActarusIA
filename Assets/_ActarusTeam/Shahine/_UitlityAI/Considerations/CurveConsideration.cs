@@ -17,11 +17,17 @@ namespace UtilityAI {
 
         public override float Evaluate(Context context) {
             
-            float inputValue = Mathf.Clamp(context.GetData<float>(contextKey), inputMin, inputMax);
-            
-            float utility = curve.Evaluate(inputValue/inputMax);
-            
+            object raw = context.GetData<object>(contextKey);
+            float value = raw switch {
+                float f => f,
+                int i => i,
+                _ => 0f
+            };
+
+            float normalized = inputMax > 0f ? Mathf.Clamp(value, inputMin, inputMax) / inputMax : 0f;
+            float utility = curve.Evaluate(normalized);
             return Mathf.InverseLerp(scoreMin, scoreMax, utility);
+
         }
 
         void Reset() {
