@@ -13,8 +13,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
             if (!_bb)
                 return input;
-
-            _bb.RefreshScoreboard();
+            
 
             if (_bb.combatMode == Blackboard.CombatMode.Hunt)
                 return input;

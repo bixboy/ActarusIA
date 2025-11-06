@@ -10,7 +10,7 @@ namespace Teams.ActarusController.Shahine
     {
         [SerializeField] private Blackboard _bb;
         [SerializeField] private List<UtilityAction> _actions = new List<UtilityAction>();
-        private List<CombatModeUtilityAction> _modeActions = new List<CombatModeUtilityAction>();
+        private List<UtilityAction> _modeActions = new List<UtilityAction>();
 
         public UtilityAgent(Blackboard bb)
         {
@@ -31,7 +31,7 @@ namespace Teams.ActarusController.Shahine
             }
 
             _modeActions = discovered
-                .OfType<CombatModeUtilityAction>()
+                .OfType<UtilityAction>()
                 .ToList();
 
             _actions = discovered

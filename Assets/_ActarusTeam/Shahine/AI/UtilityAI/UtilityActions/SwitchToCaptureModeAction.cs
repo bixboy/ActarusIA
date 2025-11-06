@@ -16,8 +16,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
             if (_bb.combatMode != Blackboard.CombatMode.Hunt)
                 return input;
-
-            _bb.RefreshScoreboard();
+            
 
             var ev = EvaluateCombatSituation();
             if (!ev.HasValidData)

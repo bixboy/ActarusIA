@@ -113,8 +113,7 @@ namespace Teams.ActarusController.Shahine
 
             combatMode = CombatMode.Capture;
             lastCombatModeSwitchTime = -999f;
-
-            RefreshScoreboard();
+            
 
             _waypointPrioritySystem = new WaypointPrioritySystem();
             if (UseOldWaypointSystemPriority)
@@ -147,7 +146,6 @@ namespace Teams.ActarusController.Shahine
             
             EnemyDistanceToMyShip = Vector2.Distance(MyShip.Position, EnemyShip.Position);
             
-            
             Mines = data.Mines;
             Bullets = data.Bullets;
             TimeLeft = data.timeLeft;
@@ -155,7 +153,9 @@ namespace Teams.ActarusController.Shahine
             IsEnemyInFront = EnemyIsInFront();
             IsEnemyInBack = EnemyIsBackBack();
             
-            RefreshScoreboard();
+            scoreLead = myShip.Score - enemyShip.Score;
+            waypointLead = myShip.WaypointScore - enemyShip.WaypointScore;
+            hitLead = myShip.HitScore - enemyShip.HitScore;
             
             if (TargetWaypoint == null || TargetWaypoint.Owner == MyShip.Owner)
             {
@@ -361,16 +361,6 @@ namespace Teams.ActarusController.Shahine
         {
             combatMode = mode;
             lastCombatModeSwitchTime = Time.time;
-        }
-
-        public void RefreshScoreboard()
-        {
-            if (myShip == null || enemyShip == null)
-                return;
-
-            scoreLead = myShip.Score - enemyShip.Score;
-            waypointLead = myShip.WaypointScore - enemyShip.WaypointScore;
-            hitLead = myShip.HitScore - enemyShip.HitScore;
         }
 
         public void UpdateEnemyBehavior()
