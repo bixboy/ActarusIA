@@ -11,33 +11,12 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         public float breakDistance = 1.25f;
         private bool _isFirstFrame = true;
 
-        [MinMaxSlider(0.6f, 1.8f)] public Vector2 MinMaxOvershoot = new Vector2(0.9f, 1.35f);
+        [MinMaxSlider(0.1f, 1.8f)] public Vector2 MinMaxOvershoot = new Vector2(0.9f, 1.35f);
         // Optionnel : pénalité de proximité (réduit l’overshoot quand on est très proche)
         [SerializeField, Range(0f, 0.5f)] private float proximityPenalty = 0.2f;
 
         public CaptureZone(Blackboard bb) : base(bb)
         {
-        }
-
-        protected override float GetInputValue(Scorer scorer)
-        {
-            if (_bb == null || _bb.myShip == null || _bb.targetWaypoint == null)
-                return 0f;
-
-            switch (scorer.inputType)
-            {
-                case ScorerInputType.Distance:
-                    return Vector2.Distance(_bb.myShip.Position, _bb.targetWaypoint.Position);
-
-                case ScorerInputType.Ownership:
-                    return _bb.targetWaypoint.Owner == -1 ? 1f : 0.5f;
-
-                case ScorerInputType.Speed:
-                    return _bb.myShip.Velocity.magnitude;
-
-                default:
-                    return 0f;
-            }
         }
 
         public override InputData Execute()

@@ -88,6 +88,8 @@ namespace Teams.ActarusController.Shahine
             if (targetWaypoint == null || targetWaypoint.Owner == myShip.Owner)
             {
                 lastWayPoint = targetWaypoint;
+                
+                
                 if (UseOldWaypointSystemPriority)
                 {
                     targetWaypoint = nextWayPoint ?? GetNearestWaypoint(myShip.Position);
@@ -99,6 +101,9 @@ namespace Teams.ActarusController.Shahine
                     targetWaypoint = selectionResult.TargetWaypoint;
                     nextWayPoint = selectionResult.FutureWaypoints[0];
                 }
+                
+                if (targetWaypoint != lastWayPoint && myShip.Energy >=  myShip.MineEnergyCost + myShip.ShockwaveEnergyCost) // Je garde toujours assez pour une shockwave d'urgence
+                    hasToDropMine = true;
             }
 
             if (targetWaypoint != null)

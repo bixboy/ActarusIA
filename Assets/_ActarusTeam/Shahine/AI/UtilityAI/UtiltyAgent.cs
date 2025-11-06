@@ -43,7 +43,7 @@ namespace Teams.ActarusController.Shahine
             var best = scored.First();
 
             // Debug : visualiser les scores dans la console
-            Debug.Log($"Best action: {best.action.GetType().Name} (Score: {best.score:F2})");
+            // Debug.Log($"Best action: {best.action.GetType().Name} (Score: {best.score:F2})");
 
             // Exécution de l’action avec le score max
             return best.action.Execute();

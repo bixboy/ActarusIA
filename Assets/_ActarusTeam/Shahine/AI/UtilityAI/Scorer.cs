@@ -7,7 +7,9 @@ namespace Teams.ActarusController.Shahine
     {
         Distance,
         Ownership,
-        Speed
+        Speed,
+        Proximity,
+        Energy
     }
     
     [System.Serializable]

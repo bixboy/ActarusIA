@@ -14,6 +14,9 @@ namespace Teams.ActarusController.Shahine
         [SerializeField] private UtilityAgent _agent;
 
 
+        [Header("Debug")] public bool CanDropMine;
+
+
         /// <inheritdoc />
         public override void Initialize(SpaceShipView spaceship, GameData data)
         {
@@ -29,6 +32,15 @@ namespace Teams.ActarusController.Shahine
             _blackboard.UpdateFromGameData(data);
 
             InputData input = _agent.Decide();
+            if (_blackboard.hasToDropMine && CanDropMine)
+            {
+                Debug.Log(_blackboard.distanceToLastTarget + _blackboard.lastWayPoint.Radius + _blackboard.myShip.Radius);
+                if (_blackboard.distanceToLastTarget + _blackboard.lastWayPoint.Radius + _blackboard.myShip.Radius <= 0.7f)
+                {
+                    input.dropMine = true;
+                    _blackboard.hasToDropMine = false;
+                }
+            }
 
             return input;
         }
