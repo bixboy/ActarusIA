@@ -15,7 +15,7 @@ MonoBehaviour:
   controllers:
   - {fileID: 1898347446518910493, guid: 3d48ebc2bc00be642bd310eab01f4c65, type: 3}
   - {fileID: 6902974904888308072, guid: 6888befb1f0091d47ae75a7dba09f45d, type: 3}
-  - {fileID: 9042134066439787902, guid: 163a819f04dd8454a9384160276380ec, type: 3}
+  - {fileID: 40313382966790278, guid: cc1d62d4408cd9b419d641afa058152f, type: 3}
   levelScenes:
   - SampleScene
   - HardScene
