@@ -1,0 +1,28 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9bddefb01bde42709efe18b44ed566a8, type: 3}
+  m_Name: HuntEnemy
+  m_EditorClassIdentifier: 
+  targetTag: 
+  consideration: {fileID: 0}
+  minPredictionTime: 0.35
+  maxPredictionTime: 2.4
+  pursuitOvershoot: 1.1
+  thrustAlignmentAngle: 20
+  waypointInterceptRadius: 4
+  waypointBias: 1.35
+  enemyWaypointBias: 2.5
+  neutralWaypointBias: 1.1
+  shootAngleTolerance: 12
+  predictiveHitTolerance: 0.2
+  shockwaveDistance: 1.75
+  mineDropDistance: 1.5
