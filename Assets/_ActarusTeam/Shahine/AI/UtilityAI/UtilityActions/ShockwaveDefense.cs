@@ -21,7 +21,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         protected override float GetInputValue(Scorer scorer)
         {
-            if (!_bb || _bb.myShip == null)
+            if (!_bb || _bb.MyShip == null)
                 return 0f;
 
             float closestThreat = GetClosestThreatDistance();
@@ -29,13 +29,13 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
             switch (scorer.inputType)
             {
-                case ScorerInputType.Distance:
+                case ScorerInputType.DistanceToTarget:
                     return targeted ? 0f : (float.IsPositiveInfinity(closestThreat) ? detectionRadius * 2f : closestThreat);
 
-                case ScorerInputType.Speed:
-                    return _bb.enemyShip != null ? _bb.enemyShip.Velocity.magnitude : 0f;
+                case ScorerInputType.ShipSpeed:
+                    return _bb.EnemyShip != null ? _bb.EnemyShip.Velocity.magnitude : 0f;
 
-                case ScorerInputType.Ownership:
+                case ScorerInputType.TargetWaypointOwnership:
                     return 1f;
             }
 
@@ -46,10 +46,10 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         {
             InputData input = new InputData
             {
-                targetOrientation = _bb?.myShip != null ? _bb.myShip.Orientation : 0f
+                targetOrientation = _bb?.MyShip != null ? _bb.MyShip.Orientation : 0f
             };
 
-            if (!_bb || _bb.myShip == null)
+            if (!_bb || _bb.MyShip == null)
                 return input;
 
             bool targeted = _bb.IsTargetedByEnemy();
@@ -68,7 +68,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
                 lastShockwaveTime = Time.time;
 
             input.fireShockwave = shouldTrigger;
-            _bb.hasToFireShockwave = shouldTrigger;
+            _bb.HasToFireShockwave = shouldTrigger;
 
             return input;
         }
@@ -77,18 +77,18 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private float GetClosestThreatDistance()
         {
-            if (_bb.myShip == null)
+            if (_bb.MyShip == null)
                 return float.PositiveInfinity;
 
-            Vector2 myPos = _bb.myShip.Position;
+            Vector2 myPos = _bb.MyShip.Position;
             float min = float.PositiveInfinity;
 
-            if (_bb.enemyShip != null)
-                min = Mathf.Min(min, Vector2.Distance(myPos, _bb.enemyShip.Position));
+            if (_bb.EnemyShip != null)
+                min = Mathf.Min(min, Vector2.Distance(myPos, _bb.EnemyShip.Position));
 
-            if (_bb.mines != null)
+            if (_bb.Mines != null)
             {
-                foreach (var mine in _bb.mines)
+                foreach (var mine in _bb.Mines)
                 {
                     if (mine != null)
                         min = Mathf.Min(min, Vector2.Distance(myPos, mine.Position));   
@@ -101,13 +101,13 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         private bool IsBulletCollisionLikely(out float eta)
         {
             eta = float.PositiveInfinity;
-            if (_bb.bullets == null || _bb.myShip == null)
+            if (_bb.Bullets == null || _bb.MyShip == null)
                 return false;
 
-            Vector2 shipPos = _bb.myShip.Position;
-            Vector2 shipVel = _bb.myShip.Velocity;
+            Vector2 shipPos = _bb.MyShip.Position;
+            Vector2 shipVel = _bb.MyShip.Velocity;
 
-            foreach (var bullet in _bb.bullets)
+            foreach (var bullet in _bb.Bullets)
             {
                 if (bullet == null)
                     continue;
@@ -137,26 +137,26 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         private bool TryGetThreatOutsideView(out float closestDistance)
         {
             closestDistance = float.PositiveInfinity;
-            if (_bb.myShip == null)
+            if (_bb.MyShip == null)
                 return false;
 
-            Vector2 myPos = _bb.myShip.Position;
+            Vector2 myPos = _bb.MyShip.Position;
             Vector2 forward = GetForwardDirection();
             bool found = false;
 
-            if (_bb.enemyShip != null)
+            if (_bb.EnemyShip != null)
             {
-                float distance = Vector2.Distance(myPos, _bb.enemyShip.Position);
-                if (distance <= detectionRadius && IsOutsideView(forward, _bb.enemyShip.Position - myPos))
+                float distance = Vector2.Distance(myPos, _bb.EnemyShip.Position);
+                if (distance <= detectionRadius && IsOutsideView(forward, _bb.EnemyShip.Position - myPos))
                 {
                     found = true;
                     closestDistance = Mathf.Min(closestDistance, distance);
                 }
             }
 
-            if (_bb.mines != null)
+            if (_bb.Mines != null)
             {
-                foreach (var mine in _bb.mines)
+                foreach (var mine in _bb.Mines)
                 {
                     if (mine == null)
                         continue;
@@ -175,19 +175,19 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private bool IsMeleeClash()
         {
-            if (_bb.enemyShip == null || _bb.myShip == null)
+            if (_bb.EnemyShip == null || _bb.MyShip == null)
                 return false;
             
-            return Vector2.Distance(_bb.myShip.Position, _bb.enemyShip.Position) < meleeDistance;
+            return Vector2.Distance(_bb.MyShip.Position, _bb.EnemyShip.Position) < meleeDistance;
         }
         
         private bool EnemyAboutToShoot()
         {
-            if (_bb.enemyShip == null || _bb.myShip == null)
+            if (_bb.EnemyShip == null || _bb.MyShip == null)
                 return false;
 
-            Vector2 toMe = _bb.myShip.Position - _bb.enemyShip.Position;
-            float angle = Vector2.Angle(_bb.enemyShip.LookAt, toMe);
+            Vector2 toMe = _bb.MyShip.Position - _bb.EnemyShip.Position;
+            float angle = Vector2.Angle(_bb.EnemyShip.LookAt, toMe);
     
             return angle < 15f && toMe.magnitude < 4.2f;
         }
@@ -199,19 +199,19 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private bool HasEnergyForShockwave(bool urgent)
         {
-            float cost = _bb.myShip.ShockwaveEnergyCost;
-            if (_bb.energy < cost)
+            float cost = _bb.MyShip.ShockwaveEnergyCost;
+            if (_bb.MyEnergyLeft < cost)
                 return false;
             
             if (urgent)
                 return true;
             
-            return (_bb.energy - cost) >= postShockwaveEnergyReserve;
+            return (_bb.MyEnergyLeft - cost) >= postShockwaveEnergyReserve;
         }
 
         private bool AdaptiveEnergyApproval()
         {
-            float ratio = Mathf.InverseLerp(0.15f, 0.65f, _bb.energy);
+            float ratio = Mathf.InverseLerp(0.15f, 0.65f, _bb.MyEnergyLeft);
             return Random.value < ratio;
         }
 
@@ -219,10 +219,10 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private Vector2 GetForwardDirection()
         {
-            if (_bb.myShip.LookAt.sqrMagnitude > Mathf.Epsilon)
-                return _bb.myShip.LookAt.normalized;
+            if (_bb.MyShip.LookAt.sqrMagnitude > Mathf.Epsilon)
+                return _bb.MyShip.LookAt.normalized;
 
-            float rad = _bb.myShip.Orientation * Mathf.Deg2Rad;
+            float rad = _bb.MyShip.Orientation * Mathf.Deg2Rad;
             return new Vector2(Mathf.Cos(rad), Mathf.Sin(rad));
         }
 

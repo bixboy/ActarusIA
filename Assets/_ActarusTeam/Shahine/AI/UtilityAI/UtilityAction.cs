@@ -39,28 +39,45 @@ namespace Teams.ActarusController.Shahine
         /// </summary>
         protected virtual float GetInputValue(Scorer scorer)
         {
-            if (_bb == null || _bb.targetWaypoint == null)
+            if (_bb == null || _bb.TargetWaypoint == null)
                 return 0f;
 
             switch (scorer.inputType)
             {
-                case ScorerInputType.Distance:
-                    return Vector2.Distance(_bb.myShip.Position, _bb.targetWaypoint.Position);
-
-                case ScorerInputType.Speed:
-                    return _bb.myShip.Velocity.magnitude;
-
-                case ScorerInputType.Energy:
-                    return _bb.myShip.Energy;
-
-                case ScorerInputType.Ownership:
-                    return _bb.targetWaypoint.Owner == -1 ? 1f : 0.5f;
-
-                case ScorerInputType.Proximity:
-                    float dist = _bb.distanceToTarget;
-                    float radius = _bb.targetWaypoint.Radius;
-                    return Mathf.Clamp01(1f - (dist / (radius + 0.25f)));
-
+                case ScorerInputType.DistanceToWaypointTarget:
+                    return Vector2.Distance(_bb.MyShip.Position, _bb.TargetWaypoint.Position);
+                
+                case ScorerInputType.TargetWaypointOwnership:
+                    return _bb.TargetWaypoint.Owner == -1 ? 1f : 0.5f;
+                
+                case ScorerInputType.ShipSpeed:
+                    return _bb.MyShip.Velocity.magnitude;
+                
+                case ScorerInputType.LastWaypointProximity:
+                    float dist = _bb.DistanceToLastTarget;
+                    float radius = _bb.TargetWaypoint.Radius;
+                    return Mathf.Clamp01(1f - (dist / (radius + 0.2f)));
+                
+                case ScorerInputType.MyShipEnergyLeft:
+                    return _bb.MyShip.Energy;
+                
+                case ScorerInputType.EnemyEnergyLeft:
+                    return _bb.EnemyEnergyLeft;
+                
+                case ScorerInputType.TimeLeft:
+                    return _bb.TimeLeft;
+                
+                case ScorerInputType.MyScore:
+                    return _bb.MyScore;
+                
+                case ScorerInputType.EnemyScore:
+                    return _bb.EnemyScore;
+                
+                case ScorerInputType.EnemyDistance:
+                    return _bb.EnemyDistanceToMyShip;
+                 
+                
+                
                 default:
                     return 0f;
             }

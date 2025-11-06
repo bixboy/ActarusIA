@@ -23,15 +23,15 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         {
             InputData input = new InputData();
 
-            if (_bb.targetWaypoint == null)
+            if (_bb.TargetWaypoint == null)
                 return input;
 
             float targetOrient;
-            if (_bb.myShip.Velocity.sqrMagnitude < 0.0001f)
+            if (_bb.MyShip.Velocity.sqrMagnitude < 0.0001f)
             {
                 // On calcule manuellement l'angle à partir du regard (LookAt)
-                Vector2 lookDir = _bb.myShip.LookAt.normalized;
-                float deltaAngle = Vector2.SignedAngle(lookDir, _bb.targetWaypoint.Position - _bb.myShip.Position);
+                Vector2 lookDir = _bb.MyShip.LookAt.normalized;
+                float deltaAngle = Vector2.SignedAngle(lookDir, _bb.TargetWaypoint.Position - _bb.MyShip.Position);
                 deltaAngle *= 1.125f; // ton overshoot par défaut
                 deltaAngle = Mathf.Clamp(deltaAngle, -170f, 170f);
                 float velocityOrientation = Vector2.SignedAngle(Vector2.right, lookDir);
@@ -40,22 +40,22 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             else
             {
                 // Cas normal : on utilise la fonction existante
-                targetOrient = RotateShipToTarget(ComputeEntryPoint(_bb.targetWaypoint, _bb.nextWayPoint));
+                targetOrient = RotateShipToTarget(ComputeEntryPoint(_bb.TargetWaypoint, _bb.NextWayPoint));
             }
             input.targetOrientation = targetOrient;
             
             
-            float angleDiff = Mathf.Abs(Mathf.DeltaAngle(_bb.myShip.Orientation, targetOrient));
+            float angleDiff = Mathf.Abs(Mathf.DeltaAngle(_bb.MyShip.Orientation, targetOrient));
 
             // Propulsion lissée selon l'alignement
-            if (angleDiff < _bb.angleTolerance)
+            if (angleDiff < _bb.AngleTolerance)
             {
-                input.thrust = Mathf.Lerp(0.3f, 1f, 1 - angleDiff / _bb.angleTolerance);
-                Debug.Log(_bb.distanceToTarget - _bb.targetWaypoint.Radius);
-                if (_bb.distanceToTarget - _bb.targetWaypoint.Radius <= breakDistance)
+                input.thrust = Mathf.Lerp(0.3f, 1f, 1 - angleDiff / _bb.AngleTolerance);
+                Debug.Log(_bb.DistanceToTarget - _bb.TargetWaypoint.Radius);
+                if (_bb.DistanceToTarget - _bb.TargetWaypoint.Radius <= breakDistance)
                 {
                     input.thrust = 0;
-                    RotateShipToTarget(_bb.nextWayPoint.Position);
+                    RotateShipToTarget(_bb.NextWayPoint.Position);
                 }
             }
             else
@@ -91,9 +91,9 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             float overshoot = Mathf.Lerp(MinMaxOvershoot.x, MinMaxOvershoot.y, t);
 
             // 6) Ajustement de proximité (évite de passer au-dessus quand on est collé)
-            if (_bb?.targetWaypoint != null)
+            if (_bb?.TargetWaypoint != null)
             {
-                float r = _bb.targetWaypoint.Radius;
+                float r = _bb.TargetWaypoint.Radius;
                 float close = Mathf.Clamp01(r / Mathf.Max(distance, 0.01f));
                 overshoot -= proximityPenalty * close; // réduit overshoot en approche
             }
@@ -104,8 +104,8 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         public float RotateShipToTarget(Vector2 targetPosition)
         {
-            float k = ComputeContextOvershoot(_bb.myShip, targetPosition);
-            return AimingHelpers.ComputeSteeringOrient(_bb.myShip, targetPosition, k);
+            float k = ComputeContextOvershoot(_bb.MyShip, targetPosition);
+            return AimingHelpers.ComputeSteeringOrient(_bb.MyShip, targetPosition, k);
         }
         
 
@@ -142,7 +142,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             float r = current.Radius;
 
             // Directions normalisées
-            Vector2 fromShip = _bb.myShip.Position - wc; 
+            Vector2 fromShip = _bb.MyShip.Position - wc; 
             Vector2 toNext   = wn - wc;                  
 
             // Base : direction moyenne
@@ -154,12 +154,12 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         
         private void OnDrawGizmos()
         {
-            if (_bb == null || _bb.myShip == null || _bb.targetWaypoint == null || _bb.nextWayPoint == null)
+            if (_bb == null || _bb.MyShip == null || _bb.TargetWaypoint == null || _bb.NextWayPoint == null)
                 return;
 
-            Vector2 shipPos = _bb.myShip.Position;
-            Vector2 entry = ComputeEntryPoint(_bb.targetWaypoint, _bb.nextWayPoint);
-            Vector2 next = _bb.nextWayPoint.Position;
+            Vector2 shipPos = _bb.MyShip.Position;
+            Vector2 entry = ComputeEntryPoint(_bb.TargetWaypoint, _bb.NextWayPoint);
+            Vector2 next = _bb.NextWayPoint.Position;
 
             // --- Couleur de la trajectoire ---
             Gizmos.color = new Color(1f, 0.5f, 0f, 0.9f); // orange / doré
@@ -179,16 +179,16 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
             
             
-            Vector2 toTarget = _bb.targetWaypoint.Position - shipPos;
-            float angleToTarget = Vector2.SignedAngle(_bb.myShip.LookAt, toTarget);
+            Vector2 toTarget = _bb.TargetWaypoint.Position - shipPos;
+            float angleToTarget = Vector2.SignedAngle(_bb.MyShip.LookAt, toTarget);
 
-            float halfAngle = _bb.angleTolerance / 2;
+            float halfAngle = _bb.AngleTolerance / 2;
             float length = 2.0f; 
 
-            bool isAligned = Mathf.Abs(angleToTarget) <= _bb.angleTolerance ;
+            bool isAligned = Mathf.Abs(angleToTarget) <= _bb.AngleTolerance ;
             Gizmos.color = isAligned ? Color.green : Color.red;
             
-            Vector2 dir = new Vector2(_bb.myShip.LookAt.x, _bb.myShip.LookAt.y);
+            Vector2 dir = new Vector2(_bb.MyShip.LookAt.x, _bb.MyShip.LookAt.y);
             Vector2 leftDir = Quaternion.Euler(0, 0, halfAngle) * dir;
             Vector2 rightDir = Quaternion.Euler(0, 0, -halfAngle) * dir;
 
