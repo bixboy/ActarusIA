@@ -19,6 +19,11 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         {
         }
 
+        private void Awake()
+        {
+            ConfigureAvailability(true, false);
+        }
+
         public override InputData Execute()
         {
             InputData input = new InputData();
