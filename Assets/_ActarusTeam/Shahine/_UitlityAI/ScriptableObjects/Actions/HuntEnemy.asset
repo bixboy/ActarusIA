@@ -22,6 +22,9 @@ MonoBehaviour:
   waypointBias: 1.35
   enemyWaypointBias: 2.5
   neutralWaypointBias: 1.1
+  captureLockRadiusMultiplier: 1.75
+  captureLockReleaseDistance: 12
+  captureLockDistanceWeight: 0.08
   predictiveHitTolerance: 0.2
   shootAngleTolerance: 12
   shockwaveDistance: 1.75

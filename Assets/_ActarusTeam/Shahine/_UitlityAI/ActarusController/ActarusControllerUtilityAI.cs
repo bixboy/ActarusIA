@@ -126,6 +126,7 @@ namespace Teams.ActarusController.Shahine
             context.SetData("PreviousCombatMode", _previousCombatMode);
             context.SetData("TimeInCurrentCombatMode", 0f);
             context.SetData("HuntFocusWaypoint", null);
+            context.SetData("HuntLockedWaypoint", null);
             context.SetData("HuntTargetPoint", spaceship.Position);
         }
 

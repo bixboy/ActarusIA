@@ -19,6 +19,9 @@ namespace UtilityAI
         [SerializeField] private float waypointBias = 1.35f;
         [SerializeField] private float enemyWaypointBias = 2.5f;
         [SerializeField] private float neutralWaypointBias = 1.1f;
+        [SerializeField, Range(1f, 4f)] private float captureLockRadiusMultiplier = 1.75f;
+        [SerializeField, Range(3f, 25f)] private float captureLockReleaseDistance = 12f;
+        [SerializeField, Range(0.01f, 0.3f)] private float captureLockDistanceWeight = 0.08f;
 
         [Header("Weapons")]
         [SerializeField, Range(0.05f, 0.6f)] private float predictiveHitTolerance = 0.2f;
@@ -40,8 +43,12 @@ namespace UtilityAI
             if (controller && controller.CurrentCombatMode != ActarusControllerUtilityAI.CombatMode.Hunt)
                 controller.SetCombatMode(ActarusControllerUtilityAI.CombatMode.Hunt);
 
+            WayPointView captureLock = UpdateCaptureLock(context, myShip, enemy);
+
             Vector2 pursuitPoint = ComputePursuitPoint(myShip, enemy);
-            WayPointView interceptionWaypoint = SelectInterceptionWaypoint(context, myShip, enemy, pursuitPoint);
+            WayPointView interceptionWaypoint = captureLock != null
+                ? captureLock
+                : SelectInterceptionWaypoint(context, myShip, enemy, pursuitPoint);
 
             if (interceptionWaypoint != null)
             {
@@ -69,7 +76,7 @@ namespace UtilityAI
             if (angleDiff < thrustAlignmentAngle)
                 input.thrust = Mathf.Lerp(0.4f, 1f, 1f - angleDiff / thrustAlignmentAngle);
             else
-                input.thrust = 0f;
+                input.thrust = Mathf.Lerp(0.1f, 0.35f, Mathf.Clamp01(1f - angleDiff / 180f));
 
             if (hasPredictiveShot && angleDiff <= shootAngleTolerance && myShip.Energy >= myShip.ShootEnergyCost &&
                 AimingHelpers.CanHit(myShip, enemy.Position, enemy.Velocity, predictiveHitTolerance))
@@ -100,6 +107,7 @@ namespace UtilityAI
             var enemy = context.GetData<SpaceShipView>("EnemyShip");
             var pursuitPoint = context.GetData<Vector2>("HuntTargetPoint");
             var focusWaypoint = context.GetData<WayPointView>("HuntFocusWaypoint");
+            var lockedWaypoint = context.GetData<WayPointView>("HuntLockedWaypoint");
 
             if (myShip == null || enemy == null)
                 return;
@@ -117,6 +125,13 @@ namespace UtilityAI
                 {
                     Gizmos.color = Color.yellow;
                     Gizmos.DrawWireSphere(focusWaypoint.Position, waypointInterceptRadius);
+                }
+
+                if (lockedWaypoint != null)
+                {
+                    Gizmos.color = Color.cyan;
+                    float threatRadius = Mathf.Max(lockedWaypoint.Radius * captureLockRadiusMultiplier, 1.5f);
+                    Gizmos.DrawWireSphere(lockedWaypoint.Position, threatRadius);
                 }
             });
         }
@@ -215,6 +230,36 @@ namespace UtilityAI
             return true;
         }
 
+        private WayPointView UpdateCaptureLock(Context context, SpaceShipView myShip, SpaceShipView enemy)
+        {
+            if (context == null || myShip == null)
+                return null;
+
+            WayPointView lockedWaypoint = context.GetData<WayPointView>("HuntLockedWaypoint");
+
+            if (lockedWaypoint != null)
+            {
+                bool nowMine = lockedWaypoint.Owner == myShip.Owner;
+                bool enemyClose = enemy != null &&
+                                  Vector2.Distance(enemy.Position, lockedWaypoint.Position) <= captureLockReleaseDistance;
+
+                if (nowMine && !enemyClose)
+                {
+                    context.SetData("HuntLockedWaypoint", null);
+                    lockedWaypoint = null;
+                }
+            }
+
+            if (lockedWaypoint == null)
+            {
+                lockedWaypoint = FindEnemyCaptureWaypoint(context, myShip, enemy);
+                if (lockedWaypoint != null)
+                    context.SetData("HuntLockedWaypoint", lockedWaypoint);
+            }
+
+            return lockedWaypoint;
+        }
+
         private WayPointView SelectInterceptionWaypoint(Context context, SpaceShipView myShip, SpaceShipView enemy, Vector2 pursuitPoint)
         {
             var waypoints = context.GetData<List<WayPointView>>("Waypoints");
@@ -250,6 +295,55 @@ namespace UtilityAI
 
                 float pursuitAlignment = 1f - Mathf.Clamp01(Vector2.Distance(pursuitPoint, waypoint.Position) / (waypointInterceptRadius * 2f));
                 score += pursuitAlignment;
+
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestWaypoint = waypoint;
+                }
+            }
+
+            return bestWaypoint;
+        }
+
+        private WayPointView FindEnemyCaptureWaypoint(Context context, SpaceShipView myShip, SpaceShipView enemy)
+        {
+            var waypoints = context.GetData<List<WayPointView>>("Waypoints");
+            if (waypoints == null || waypoints.Count == 0 || enemy == null)
+                return null;
+
+            float bestScore = float.MinValue;
+            WayPointView bestWaypoint = null;
+
+            foreach (WayPointView waypoint in waypoints)
+            {
+                if (waypoint == null)
+                    continue;
+
+                bool enemyOwns = waypoint.Owner == enemy.Owner;
+                float enemyDistance = Vector2.Distance(enemy.Position, waypoint.Position);
+                float threatRadius = Mathf.Max(waypoint.Radius * captureLockRadiusMultiplier, 1.5f);
+                bool enemyThreat = enemyDistance <= threatRadius;
+
+                if (!enemyOwns && !enemyThreat)
+                    continue;
+
+                float myDistance = Vector2.Distance(myShip.Position, waypoint.Position);
+
+                float score = 0f;
+
+                if (enemyOwns)
+                    score += enemyWaypointBias * 1.35f;
+                else
+                    score += neutralWaypointBias;
+
+                if (enemyThreat)
+                    score += waypointBias;
+
+                score -= myDistance * captureLockDistanceWeight;
+
+                if (enemyDistance < myDistance)
+                    score += waypointBias * 0.5f;
 
                 if (score > bestScore)
                 {
