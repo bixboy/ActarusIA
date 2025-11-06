@@ -12,8 +12,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9bddefb01bde42709efe18b44ed566a8, type: 3}
   m_Name: HuntEnemy
   m_EditorClassIdentifier: 
-  targetTag: 
-  consideration: {fileID: 0}
+  targetTag: HuntEnemy
+  consideration: {fileID: 11400000, guid: 32cfdfa068c9f8046b18ffbf602b55a7, type: 2}
   minPredictionTime: 0.35
   maxPredictionTime: 2.4
   pursuitOvershoot: 1.1
@@ -22,7 +22,10 @@ MonoBehaviour:
   waypointBias: 1.35
   enemyWaypointBias: 2.5
   neutralWaypointBias: 1.1
-  shootAngleTolerance: 12
+  captureLockRadiusMultiplier: 1.75
+  captureLockReleaseDistance: 12
+  captureLockDistanceWeight: 0.08
   predictiveHitTolerance: 0.2
+  shootAngleTolerance: 12
   shockwaveDistance: 1.75
   mineDropDistance: 1.5

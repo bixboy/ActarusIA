@@ -10,7 +10,13 @@ namespace UtilityAI {
             // Optional initialization logic
         }
         
-        public float CalculateUtility(Context context) => consideration.Evaluate(context);
+        public virtual float CalculateUtility(Context context)
+        {
+            if (consideration == null)
+                return 0f;
+
+            return consideration.Evaluate(context);
+        }
         
         public abstract InputData Execute(Context context);
 
