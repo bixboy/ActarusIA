@@ -10,7 +10,7 @@ namespace Teams.ActarusController.Shahine
     {
         [SerializeField] private Blackboard _bb;
         [SerializeField] private List<UtilityAction> _actions = new List<UtilityAction>();
-        private CombatModeSelector _modeSelector;
+        private List<CombatModeUtilityAction> _modeActions = new List<CombatModeUtilityAction>();
 
         public UtilityAgent(Blackboard bb)
         {
@@ -22,7 +22,7 @@ namespace Teams.ActarusController.Shahine
             _bb = bb;
 
             var discovered = GetComponents<UtilityAction>()
-                .Where(action => action != null && action is not CombatModeSelector)
+                .Where(action => action != null)
                 .ToList();
 
             foreach (UtilityAction action in discovered)
@@ -30,13 +30,13 @@ namespace Teams.ActarusController.Shahine
                 action.InitAction(_bb);
             }
 
-            _actions = discovered;
+            _modeActions = discovered
+                .OfType<CombatModeUtilityAction>()
+                .ToList();
 
-            _modeSelector = GetComponent<CombatModeSelector>();
-            if (_modeSelector != null)
-            {
-                _modeSelector.InitAction(_bb);
-            }
+            _actions = discovered
+                .Where(action => action is not CombatModeUtilityAction)
+                .ToList();
         }
 
         public void RegisterAction(UtilityAction action)
@@ -46,7 +46,13 @@ namespace Teams.ActarusController.Shahine
 
         public InputData Decide()
         {
-            _modeSelector?.Execute();
+            if (_modeActions != null)
+            {
+                foreach (CombatModeUtilityAction modeAction in _modeActions)
+                {
+                    modeAction?.Execute();
+                }
+            }
 
             if (_actions == null || _actions.Count == 0)
                 return new InputData();
