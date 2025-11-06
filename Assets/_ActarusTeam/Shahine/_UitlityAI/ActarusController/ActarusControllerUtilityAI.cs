@@ -25,12 +25,15 @@ namespace Teams.ActarusController.Shahine
 
         [Header("Combat mode")] [SerializeField]
         private CombatMode initialCombatMode = CombatMode.Capture;
+        
+        [SerializeField, Tooltip("Use only score-based switching if true, otherwise use only waypoint-based switching.")]
+        private bool useScoreForCombatModeOnly = true;
 
         [SerializeField, Tooltip("Minimum score lead required before switching to the Hunt mode.")]
-        private int scoreLeadForHunt = 150;
+        private int scoreLeadForHunt = 4;
 
         [SerializeField, Tooltip("Score lead threshold below which we fall back to Capture mode.")]
-        private int scoreLeadForCapture = 50;
+        private int scoreLeadForCapture = 2;
 
         [SerializeField, Tooltip("Minimum percentage of waypoints owned before switching to Hunt mode.")]
         [Range(0f, 1f)]
@@ -279,8 +282,19 @@ namespace Teams.ActarusController.Shahine
 
             float ownedRatio = totalWaypoints > 0 ? (float)ownedWaypoints / totalWaypoints : 0f;
 
-            bool huntConditionsMet = scoreLead >= scoreLeadForHunt || ownedRatio >= ownedRatioForHunt;
-            bool captureConditionsMet = scoreLead <= scoreLeadForCapture && ownedRatio <= ownedRatioForCapture;
+            bool huntConditionsMet, captureConditionsMet;
+
+            if (useScoreForCombatModeOnly)
+            {
+                huntConditionsMet = scoreLead >= scoreLeadForHunt;
+                captureConditionsMet = scoreLead <= scoreLeadForCapture;
+            }
+            else
+            {
+                huntConditionsMet = ownedRatio >= ownedRatioForHunt;
+                captureConditionsMet = ownedRatio <= ownedRatioForCapture;
+            }
+
 
             if (combatModeSwitchCooldown > 0f)
             {
@@ -291,10 +305,12 @@ namespace Teams.ActarusController.Shahine
 
             if (_currentCombatMode != CombatMode.Hunt && huntConditionsMet)
             {
+                Debug.Log("HUNT");
                 SetCombatMode(CombatMode.Hunt);
             }
-            else if (_currentCombatMode == CombatMode.Hunt && captureConditionsMet)
+            else if (_currentCombatMode == CombatMode.Hunt && captureConditionsMet && !huntConditionsMet)
             {
+                Debug.Log("CAPTURE");
                 SetCombatMode(CombatMode.Capture);
             }
         }
