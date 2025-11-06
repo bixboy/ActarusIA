@@ -17,6 +17,11 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         public ShootEnemy(Blackboard bb) : base(bb) {}
 
+        private void Awake()
+        {
+            ConfigureAvailability(false, true);
+        }
+
         protected override float GetInputValue(Scorer scorer)
         {
             if (!_bb || _bb.myShip == null)

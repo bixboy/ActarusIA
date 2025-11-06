@@ -8,12 +8,20 @@ namespace Teams.ActarusController.Shahine
     {
         [SerializeField] protected Blackboard _bb;
         [SerializeField] protected Scorer[] _scorers;
+        [SerializeField] private bool _availableInCapture = true;
+        [SerializeField] private bool _availableInHunt = true;
 
-        
+
 
         public UtilityAction(Blackboard bb)
         {
             _bb = bb;
+        }
+
+        protected void ConfigureAvailability(bool availableInCapture, bool availableInHunt)
+        {
+            _availableInCapture = availableInCapture;
+            _availableInHunt = availableInHunt;
         }
 
         public void InitAction(Blackboard bb)
@@ -26,6 +34,9 @@ namespace Teams.ActarusController.Shahine
         /// </summary>
         public float ComputeUtility()
         {
+            if (_scorers == null || _scorers.Length == 0)
+                return 0f;
+
             float total = 0f;
             foreach (var scorer in _scorers)
             {
@@ -33,7 +44,17 @@ namespace Teams.ActarusController.Shahine
             }
             return total / _scorers.Length; // moyenne
         }
-        
+
+        public bool IsAvailableForMode(Blackboard.CombatMode mode)
+        {
+            return mode switch
+            {
+                Blackboard.CombatMode.Capture => _availableInCapture,
+                Blackboard.CombatMode.Hunt => _availableInHunt,
+                _ => true
+            };
+        }
+
         /// <summary>
         /// Méthode à redéfinir pour récupérer la donnée d’entrée propre à l’action.
         /// </summary>
