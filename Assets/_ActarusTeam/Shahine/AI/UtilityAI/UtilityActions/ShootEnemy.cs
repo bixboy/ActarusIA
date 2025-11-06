@@ -16,27 +16,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         [SerializeField] private float mineAlignmentTolerance = 12f;
 
         public ShootEnemy(Blackboard bb) : base(bb) {}
-
-        protected override float GetInputValue(Scorer scorer)
-        {
-            if (!_bb || _bb.MyShip == null)
-                return 0f;
-
-            switch (scorer.inputType)
-            {
-                case ScorerInputType.DistanceToTarget:
-                    return _bb.EnemyShip != null ? Vector2.Distance(_bb.MyShip.Position, _bb.EnemyShip.Position) : 0f;
-
-                case ScorerInputType.ShipSpeed:
-                    return _bb.EnemyShip != null ? _bb.EnemyShip.Velocity.magnitude : 0f;
-
-                case ScorerInputType.TargetWaypointOwnership:
-                    return 1f;
-
-                default:
-                    return 0f;
-            }
-        }
+        
 
         public override InputData Execute()
         {

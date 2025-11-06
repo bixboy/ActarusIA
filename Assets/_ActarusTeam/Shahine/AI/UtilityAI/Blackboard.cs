@@ -3,6 +3,7 @@ using System.Linq;
 using DoNotModify;
 using NaughtyAttributes;
 using Teams.ActarusControllerV2.pierre;
+using UnityEditor;
 using UnityEngine;
 using UnityEngine.Serialization;
 
@@ -15,6 +16,8 @@ namespace Teams.ActarusController.Shahine
         [ReadOnly] public SpaceShipView MyShip;
         [ReadOnly] public int MyScore;
         [ReadOnly] public float MyEnergyLeft;
+        [ReadOnly] public bool IsEnemyInFront;
+        [ReadOnly] public bool IsEnemyInBack;
         
         [Header("Enemy")]
         [ReadOnly] public SpaceShipView EnemyShip;
@@ -66,11 +69,16 @@ namespace Teams.ActarusController.Shahine
             Asteroids = data.Asteroids;
 
             MyScore = ship.Score;
+            MyEnergyLeft = ship.Energy;
+            
             EnemyScore = EnemyShip.Score;
+            EnemyEnergyLeft = EnemyShip.Energy;
             EnemyDistanceToMyShip = Vector2.Distance(MyShip.Position, EnemyShip.Position);
+            
+            
             Mines = data.Mines;
             Bullets = data.Bullets;
-            MyEnergyLeft = ship.Energy;
+            
             TimeLeft = data.timeLeft;
 
             _waypointPrioritySystem = new WaypointPrioritySystem();
@@ -96,10 +104,21 @@ namespace Teams.ActarusController.Shahine
 
         public void UpdateFromGameData(GameData data)
         {
+            MyScore = MyShip.Score;
+            MyEnergyLeft = MyShip.Energy;
+            
+            EnemyScore = EnemyShip.Score;
+            EnemyEnergyLeft = EnemyShip.Energy;
+            
+            EnemyDistanceToMyShip = Vector2.Distance(MyShip.Position, EnemyShip.Position);
+            
+            
             Mines = data.Mines;
             Bullets = data.Bullets;
-            MyEnergyLeft = MyShip.Energy;
             TimeLeft = data.timeLeft;
+
+            IsEnemyInFront = EnemyIsInFront();
+            IsEnemyInBack = EnemyIsBackBack();
             
             if (TargetWaypoint == null || TargetWaypoint.Owner == MyShip.Owner)
             {
@@ -240,8 +259,18 @@ namespace Teams.ActarusController.Shahine
             
             return AimingHelpers.CanHit(MyShip, enemyPos, EnemyShip.Velocity, hitTimeTolerance);
         }
+
+        public bool EnemyIsInFront()
+        {
+            return IsPointInCone(MyShip.Position, MyShip.LookAt, EnemyShip.Position, AngleTolerance);
+        }
         
-        public static bool IsPointInCone(Vector2 origin, Vector2 direction, Vector2 point, float angleDeg)
+        public bool EnemyIsBackBack()
+        {
+            return IsPointInCone(MyShip.Position, -MyShip.LookAt, EnemyShip.Position, AngleTolerance);
+        }
+        
+        public bool IsPointInCone(Vector2 origin, Vector2 direction, Vector2 point, float angleDeg)
         {
             Vector2 toPoint = (point - origin).normalized;
 
@@ -254,6 +283,55 @@ namespace Teams.ActarusController.Shahine
             // Si le cos(angle) est plus grand que la limite, le point est dans le cône
             return dot > Mathf.Cos(halfAngle * Mathf.Deg2Rad);
         }
+        
+#if UNITY_EDITOR
+        private void OnDrawGizmos()
+        {
+            if (MyShip == null)
+                return;
+
+            Vector2 pos = MyShip.Position;
+            Vector2 dir = MyShip.LookAt.normalized;
+
+            // Paramètres
+            float halfAngle = AngleTolerance * 0.5f;
+            float length = 3f; // longueur des cônes
+
+            // === 1️⃣ --- Cône avant ---
+            bool frontHit = EnemyShip != null && EnemyIsInFront();
+            Gizmos.color = frontHit ? Color.green : Color.red;
+
+            Vector2 leftFront = Quaternion.Euler(0, 0, halfAngle) * dir;
+            Vector2 rightFront = Quaternion.Euler(0, 0, -halfAngle) * dir;
+
+            // Dessine les deux côtés
+            Gizmos.DrawLine(pos, pos + leftFront * length);
+            Gizmos.DrawLine(pos, pos + rightFront * length);
+
+            // Remplis la zone (facultatif : aide visuelle)
+            Handles.color = new Color(Gizmos.color.r, Gizmos.color.g, Gizmos.color.b, 0.1f);
+            Handles.DrawSolidArc(pos, Vector3.forward, rightFront, AngleTolerance, length);
+
+            // === 2️⃣ --- Cône arrière ---
+            bool backHit = EnemyShip != null && EnemyIsBackBack();
+            Gizmos.color = backHit ? Color.green : Color.red;
+
+            Vector2 backDir = -dir;
+            Vector2 leftBack = Quaternion.Euler(0, 0, halfAngle) * backDir;
+            Vector2 rightBack = Quaternion.Euler(0, 0, -halfAngle) * backDir;
+
+            Gizmos.DrawLine(pos, pos + leftBack * length);
+            Gizmos.DrawLine(pos, pos + rightBack * length);
+
+            Handles.color = new Color(Gizmos.color.r, Gizmos.color.g, Gizmos.color.b, 0.1f);
+            Handles.DrawSolidArc(pos, Vector3.forward, rightBack, AngleTolerance, length);
+
+            // === 3️⃣ --- Lignes directrices ---
+            Gizmos.color = Color.yellow;
+            Gizmos.DrawLine(pos, pos + dir * length * 1.2f);   // avant
+            Gizmos.DrawLine(pos, pos - dir * length * 1.2f);   // arrière
+        }
+#endif
 
 
     }

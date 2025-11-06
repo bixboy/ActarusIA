@@ -18,29 +18,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         private float lastShockwaveTime;
 
         public ShockwaveDefense(Blackboard bb) : base(bb) { }
-
-        protected override float GetInputValue(Scorer scorer)
-        {
-            if (!_bb || _bb.MyShip == null)
-                return 0f;
-
-            float closestThreat = GetClosestThreatDistance();
-            bool targeted = _bb.IsTargetedByEnemy();
-
-            switch (scorer.inputType)
-            {
-                case ScorerInputType.DistanceToTarget:
-                    return targeted ? 0f : (float.IsPositiveInfinity(closestThreat) ? detectionRadius * 2f : closestThreat);
-
-                case ScorerInputType.ShipSpeed:
-                    return _bb.EnemyShip != null ? _bb.EnemyShip.Velocity.magnitude : 0f;
-
-                case ScorerInputType.TargetWaypointOwnership:
-                    return 1f;
-            }
-
-            return 0f;
-        }
+        
 
         public override InputData Execute()
         {

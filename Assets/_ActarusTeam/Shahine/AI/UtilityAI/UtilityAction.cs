@@ -76,7 +76,11 @@ namespace Teams.ActarusController.Shahine
                 case ScorerInputType.EnemyDistance:
                     return _bb.EnemyDistanceToMyShip;
                  
+                case ScorerInputType.EnemyIsInFront:
+                    return _bb.IsEnemyInFront ? 1 : 0;
                 
+                case ScorerInputType.EnemyIsInBack:
+                    return _bb.IsEnemyInBack ? 1 : 0;
                 
                 default:
                     return 0f;
