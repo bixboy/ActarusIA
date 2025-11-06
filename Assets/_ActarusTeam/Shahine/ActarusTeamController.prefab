@@ -13,7 +13,6 @@ GameObject:
   - component: {fileID: 5930348891407075199}
   - component: {fileID: 7582206718974047589}
   - component: {fileID: 3007747347993996359}
-  - component: {fileID: 8676178873881323430}
   m_Layer: 0
   m_Name: ActarusTeamController
   m_TagString: Untagged
@@ -111,22 +110,22 @@ MonoBehaviour:
       serializedVersion: 2
       m_Curve:
       - serializedVersion: 3
-        time: 0.008333334
+        time: 0
         value: 1
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
+        inSlope: -1
+        outSlope: -1
+        tangentMode: 34
         weightedMode: 0
         inWeight: 0
-        outWeight: 0
+        outWeight: 0.33333334
       - serializedVersion: 3
-        time: 1.004303
-        value: -0.003929138
-        inSlope: 0.03399275
-        outSlope: 0.03399275
-        tangentMode: 0
+        time: 1
+        value: 0
+        inSlope: -1
+        outSlope: -1
+        tangentMode: 34
         weightedMode: 0
-        inWeight: 0.28681126
+        inWeight: 0.33333334
         outWeight: 0
       m_PreInfinity: 2
       m_PostInfinity: 2
@@ -164,49 +163,3 @@ MonoBehaviour:
   breakDistance: 0
   MinMaxOvershoot: {x: 0.4, y: 1.4}
   proximityPenalty: 0.2
---- !u!114 &8676178873881323430
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7672329417856911656}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 767dea663efba3144b8bc44d36a28b60, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _bb: {fileID: 5930348891407075199}
-  _scorers:
-  - inputType: 0
-    inputMin: 0
-    inputMax: 0
-    scoreMin: 0
-    scoreMax: 0
-    scoreCurve:
-      serializedVersion: 2
-      m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 0
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      - serializedVersion: 3
-        time: 1
-        value: 1
-        inSlope: 2
-        outSlope: 2
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0
-        outWeight: 0
-      m_PreInfinity: 2
-      m_PostInfinity: 2
-      m_RotationOrder: 0
-  minimumThrustWhenAligned: 0
-  alignmentTolerance: 0
-  predictionFallbackTime: 0

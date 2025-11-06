@@ -5,11 +5,18 @@ namespace Teams.ActarusController.Shahine
     [System.Serializable]
     public enum ScorerInputType
     {
-        Distance,
-        Ownership,
-        Speed,
-        Proximity,
-        Energy
+        DistanceToWaypointTarget,
+        TargetWaypointOwnership,
+        ShipSpeed,
+        LastWaypointProximity,
+        MyShipEnergyLeft,
+        EnemyEnergyLeft,
+        TimeLeft,
+        MyScore,
+        EnemyScore,
+        EnemyDistance,
+        EnemyIsInFront,
+        EnemyIsInBack,
     }
     
     [System.Serializable]

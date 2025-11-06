@@ -24,18 +24,18 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         protected override float GetInputValue(Scorer scorer)
         {
-            if (!_bb || _bb.myShip == null)
+            if (!_bb || _bb.MyShip == null)
                 return 0f;
 
             switch (scorer.inputType)
             {
-                case ScorerInputType.Distance:
-                    return _bb.enemyShip != null ? Vector2.Distance(_bb.myShip.Position, _bb.enemyShip.Position) : 0f;
+                case ScorerInputType.DistanceToTarget:
+                    return _bb.EnemyShip != null ? Vector2.Distance(_bb.MyShip.Position, _bb.EnemyShip.Position) : 0f;
 
-                case ScorerInputType.Speed:
-                    return _bb.enemyShip != null ? _bb.enemyShip.Velocity.magnitude : 0f;
+                case ScorerInputType.ShipSpeed:
+                    return _bb.EnemyShip != null ? _bb.EnemyShip.Velocity.magnitude : 0f;
 
-                case ScorerInputType.Ownership:
+                case ScorerInputType.TargetWaypointOwnership:
                     return 1f;
 
                 default:
@@ -46,14 +46,14 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         public override InputData Execute()
         {
             InputData input = new InputData();
-            if (!_bb || _bb.myShip == null)
+            if (!_bb || _bb.MyShip == null)
                 return input;
 
             bool targetIsMine;
             Vector2 targetPos = SelectBestTarget(out targetIsMine);
 
-            Vector2 shooterPos = _bb.myShip.Position;
-            Vector2 targetVel = targetIsMine ? Vector2.zero : _bb.enemyShip.Velocity;
+            Vector2 shooterPos = _bb.MyShip.Position;
+            Vector2 targetVel = targetIsMine ? Vector2.zero : _bb.EnemyShip.Velocity;
             Vector2 aimPoint = ComputeAimPoint(shooterPos, targetPos, targetVel);
 
             aimPoint = Vector2.Lerp(aimPoint, targetPos, aimAssistStrength);
@@ -65,17 +65,17 @@ namespace Teams.ActarusController.Shahine.UtilityActions
             }
             else
             {
-                shootDirection = (_bb.enemyShip != null) ? (_bb.enemyShip.Position - shooterPos).normalized : shootDirection;
+                shootDirection = (_bb.EnemyShip != null) ? (_bb.EnemyShip.Position - shooterPos).normalized : shootDirection;
             }
 
             float desiredOrientation = Mathf.Atan2(shootDirection.y, shootDirection.x) * Mathf.Rad2Deg;
             input.targetOrientation = desiredOrientation;
 
-            float angleDiff = Mathf.Abs(Mathf.DeltaAngle(_bb.myShip.Orientation, desiredOrientation));
-            input.thrust = angleDiff <= _bb.angleTolerance ? Mathf.Lerp(minimumThrustWhenAligned, 1f, 1f - Mathf.Clamp01(angleDiff / 90f)) : 0f;
+            float angleDiff = Mathf.Abs(Mathf.DeltaAngle(_bb.MyShip.Orientation, desiredOrientation));
+            input.thrust = angleDiff <= _bb.AngleTolerance ? Mathf.Lerp(minimumThrustWhenAligned, 1f, 1f - Mathf.Clamp01(angleDiff / 90f)) : 0f;
 
-            bool enoughEnergy = _bb.energy >= _bb.myShip.ShootEnergyCost;
-            bool aligned = angleDiff <= Mathf.Min(_bb.angleTolerance, alignmentTolerance);
+            bool enoughEnergy = _bb.MyEnergyLeft >= _bb.MyShip.ShootEnergyCost;
+            bool aligned = angleDiff <= Mathf.Min(_bb.AngleTolerance, alignmentTolerance);
             bool clearShot = HasLineOfFire(shooterPos, aimPoint);
             bool closing = targetIsMine || IsClosingTarget(shootDirection, targetVel);
 
@@ -90,7 +90,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
         {
             isMine = false;
 
-            if (_bb.enemyShip != null)
+            if (_bb.EnemyShip != null)
             {
                 MineView blockingMine = GetMineBlockingFireLine();
                 if (blockingMine != null)
@@ -99,7 +99,7 @@ namespace Teams.ActarusController.Shahine.UtilityActions
                     return blockingMine.Position;
                 }
 
-                return _bb.enemyShip.Position;
+                return _bb.EnemyShip.Position;
             }
 
             MineView nearest = GetClosestMine();
@@ -109,19 +109,19 @@ namespace Teams.ActarusController.Shahine.UtilityActions
                 return nearest.Position;
             }
 
-            return _bb.myShip.Position;
+            return _bb.MyShip.Position;
         }
 
         private MineView GetClosestMine()
         {
-            if (_bb.mines == null) 
+            if (_bb.Mines == null) 
                 return null;
 
             MineView best = null;
             float minDist = float.PositiveInfinity;
-            Vector2 pos = _bb.myShip.Position;
+            Vector2 pos = _bb.MyShip.Position;
 
-            foreach (var mine in _bb.mines)
+            foreach (var mine in _bb.Mines)
             {
                 if (mine == null) continue;
                 float d = Vector2.Distance(pos, mine.Position);
@@ -137,13 +137,13 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private MineView GetMineBlockingFireLine()
         {
-            if (_bb.mines == null || _bb.enemyShip == null) 
+            if (_bb.Mines == null || _bb.EnemyShip == null) 
                 return null;
 
-            Vector2 from = _bb.myShip.Position;
-            Vector2 to = _bb.enemyShip.Position;
+            Vector2 from = _bb.MyShip.Position;
+            Vector2 to = _bb.EnemyShip.Position;
 
-            foreach (var mine in _bb.mines)
+            foreach (var mine in _bb.Mines)
             {
                 if (mine == null) 
                     continue;
@@ -160,9 +160,9 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private Vector2 ComputeAimPoint(Vector2 shooterPos, Vector2 targetPos, Vector2 targetVelocity)
         {
-            if (_bb.enemyShip != null && targetVelocity.sqrMagnitude > 0.001f)
+            if (_bb.EnemyShip != null && targetVelocity.sqrMagnitude > 0.001f)
             {
-                targetVelocity += _bb.enemyShip.LookAt.normalized * 0.35f;
+                targetVelocity += _bb.EnemyShip.LookAt.normalized * 0.35f;
             }
 
             Vector2 toTarget = targetPos - shooterPos;
@@ -218,24 +218,24 @@ namespace Teams.ActarusController.Shahine.UtilityActions
 
         private bool IsClosingTarget(Vector2 shootDir, Vector2 targetVel)
         {
-            float closingSpeed = Vector2.Dot(targetVel - _bb.myShip.Velocity, shootDir);
+            float closingSpeed = Vector2.Dot(targetVel - _bb.MyShip.Velocity, shootDir);
             return closingSpeed > 0f;
         }
 
         private bool HasLineOfFire(Vector2 from, Vector2 to)
         {
-            if (_bb.asteroids != null)
+            if (_bb.Asteroids != null)
             {
-                foreach (AsteroidView a in _bb.asteroids)
+                foreach (AsteroidView a in _bb.Asteroids)
                 {
                     if (IsObstacleBlocking(from, to, a.Position, a.Radius)) 
                         return false;   
                 }
             }
 
-            if (_bb.mines != null)
+            if (_bb.Mines != null)
             {
-                foreach (MineView m in _bb.mines)
+                foreach (MineView m in _bb.Mines)
                 {
                     if (IsObstacleBlocking(from, to, m.Position, m.BulletHitRadius)) 
                         return false;   
