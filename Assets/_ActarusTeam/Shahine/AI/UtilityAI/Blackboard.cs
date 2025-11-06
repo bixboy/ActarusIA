@@ -46,6 +46,7 @@ namespace Teams.ActarusController.Shahine
         [ReadOnly] public bool hasToFireShockwave;
 
         [ReadOnly] public CombatMode combatMode = CombatMode.Capture;
+        [ReadOnly] public float lastCombatModeSwitchTime = -999f;
         [ReadOnly] public int scoreLead;
         [ReadOnly] public int waypointLead;
         [ReadOnly] public int hitLead;
@@ -73,6 +74,7 @@ namespace Teams.ActarusController.Shahine
             timeLeft = data.timeLeft;
 
             combatMode = CombatMode.Capture;
+            lastCombatModeSwitchTime = -999f;
 
             RefreshScoreboard();
 
@@ -238,6 +240,7 @@ namespace Teams.ActarusController.Shahine
         public void SetCombatMode(CombatMode mode)
         {
             combatMode = mode;
+            lastCombatModeSwitchTime = Time.time;
         }
 
         public void RefreshScoreboard()
