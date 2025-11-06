@@ -29,6 +29,33 @@ namespace UtilityAI
         [SerializeField, Range(0.5f, 3f)] private float shockwaveDistance = 1.75f;
         [SerializeField, Range(0.5f, 3f)] private float mineDropDistance = 1.5f;
 
+        public override float CalculateUtility(Context context)
+        {
+            if (context == null)
+                return 0f;
+
+            var controller = context.ControllerUtilityAI;
+            if (!controller || controller.CurrentCombatMode != ActarusControllerUtilityAI.CombatMode.Hunt)
+                return 0f;
+
+            var myShip = context.GetData<SpaceShipView>("MyShip");
+            var enemy = context.GetData<SpaceShipView>("EnemyShip");
+            if (myShip == null || enemy == null)
+                return 0f;
+
+            float distanceNormalized = Mathf.Clamp01(context.GetData<float>("EnemyDistanceNormalized"));
+            float proximityScore = 1f - distanceNormalized;
+
+            int enemyWaypoints = Mathf.Max(0, context.GetData<int>("EnemyWaypointCount"));
+            int totalWaypoints = Mathf.Max(1, context.GetData<int>("TotalWaypointCount"));
+            float enemyControlRatio = Mathf.Clamp01((float)enemyWaypoints / totalWaypoints);
+
+            WayPointView lockedWaypoint = context.GetData<WayPointView>("HuntLockedWaypoint");
+            float lockBonus = lockedWaypoint != null ? 0.5f : 0f;
+
+            return 1.5f + proximityScore + enemyControlRatio + lockBonus;
+        }
+
         public override InputData Execute(Context context)
         {
             InputData input = new InputData();
