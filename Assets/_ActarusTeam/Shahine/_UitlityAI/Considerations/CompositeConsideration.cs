@@ -20,7 +20,6 @@ namespace UtilityAI {
             if (result == 0f && allMustBeNonZero) return 0f;
 
             float value = considerations.SecondConsideration.Evaluate(context);
-            
             if (value == 0f && allMustBeNonZero) return 0f;
 
             switch (operation) {
