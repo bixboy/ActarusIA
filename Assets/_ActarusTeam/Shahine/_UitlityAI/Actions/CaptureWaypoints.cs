@@ -36,9 +36,11 @@ namespace UtilityAI
             {
                 // On calcule manuellement l'angle à partir du regard
                 Vector2 lookDir = myShip.LookAt.normalized;
+                
                 float deltaAngle = Vector2.SignedAngle(lookDir, targetWaypoint.Position - myShip.Position);
                 deltaAngle *= 1.125f;
                 deltaAngle = Mathf.Clamp(deltaAngle, -170f, 170f);
+                
                 float velocityOrientation = Vector2.SignedAngle(Vector2.right, lookDir);
                 targetOrient = velocityOrientation + deltaAngle;
             }
@@ -55,7 +57,7 @@ namespace UtilityAI
             if (angleDiff < angleTolerance)
             {
                 input.thrust = Mathf.Lerp(0.3f, 1f, 1 - angleDiff / angleTolerance);
-                Debug.Log(distanceToTarget - targetWaypoint.Radius);
+                // Debug.Log(distanceToTarget - targetWaypoint.Radius);
 
                 if (distanceToTarget - targetWaypoint.Radius <= breakDistance)
                 {
@@ -76,6 +78,7 @@ namespace UtilityAI
         {
             Vector2 toTarget = targetPos - ship.Position;
             float distance = toTarget.magnitude;
+            
             Vector2 velocity = ship.Velocity;
             float speed = Mathf.Max(velocity.magnitude, 0.01f);
 

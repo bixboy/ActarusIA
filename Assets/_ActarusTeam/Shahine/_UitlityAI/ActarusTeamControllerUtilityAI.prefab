@@ -46,3 +46,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   actions:
   - {fileID: 11400000, guid: f1ae8d4139385aa4ab8729abb8da461d, type: 2}
+  combatBrain:
+    actions:
+    - {fileID: 11400000, guid: 6d01fa03199075d4eab952236ebe452f, type: 2}
+    - {fileID: 11400000, guid: 02ff2febb10214a4b995557e4f82f0ee, type: 2}
